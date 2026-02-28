@@ -1,0 +1,8 @@
+merlinquantum
+torch
+pandas
+openpyxl
+scikit-learn
+pyyaml
+matplotlib
+scipy
