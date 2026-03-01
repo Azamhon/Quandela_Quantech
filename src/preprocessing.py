@@ -22,16 +22,20 @@ class SwaptionPreprocessor:
         # MinMaxScaler params (per column)
         self.min_ = None
         self.range_ = None
+        # Winsorize bounds (fitted from training data)
+        self.clip_lower_ = None
+        self.clip_upper_ = None
+
+    def _winsorize_fit(self, data):
+        """Fit and clip each column to [lower_pct, upper_pct] percentiles from training data."""
+        lo, hi = self.winsorize_limits
+        self.clip_lower_ = np.percentile(data, lo * 100, axis=0)
+        self.clip_upper_ = np.percentile(data, (1 - hi) * 100, axis=0)
+        return np.clip(data, self.clip_lower_, self.clip_upper_)
 
     def _winsorize(self, data):
-        """Clip each column to [lower_pct, upper_pct] percentiles."""
-        result = np.copy(data)
-        lo, hi = self.winsorize_limits
-        for col in range(result.shape[1]):
-            lower = np.percentile(result[:, col], lo * 100)
-            upper = np.percentile(result[:, col], (1 - hi) * 100)
-            result[:, col] = np.clip(result[:, col], lower, upper)
-        return result
+        """Clip using saved training bounds."""
+        return np.clip(data, self.clip_lower_, self.clip_upper_)
 
     def fit_transform(self, data):
         """
@@ -41,8 +45,8 @@ class SwaptionPreprocessor:
         Returns:
             Normalized data in [0, 1], shape (n_timesteps, 224)
         """
-        # Step 1: Winsorize outliers
-        data_clean = self._winsorize(data)
+        # Step 1: Winsorize outliers (fit bounds from training data)
+        data_clean = self._winsorize_fit(data)
 
         # Step 2: RobustScaler (median / IQR)
         self.median_ = np.median(data_clean, axis=0)
@@ -126,6 +130,9 @@ def load_test_data(path="DATASETS/test_template.xlsx"):
 
     test_info = []
     for row in ws.iter_rows(min_row=2, values_only=True):
+        row = tuple(row)
+        if len(row) == 0 or row[0] is None:
+            continue  # skip empty trailing rows
         row_type = row[0]
         row_date = row[-1]
         values = []

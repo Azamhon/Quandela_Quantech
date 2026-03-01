@@ -51,11 +51,13 @@ def load_artefacts(cfg, device):
     # ── Preprocessor ──────────────────────────────────────────
     prep_data = np.load(os.path.join(out, "preprocessor.npz"))
     preprocessor = SwaptionPreprocessor()
-    preprocessor.median_ = prep_data["median"]
-    preprocessor.iqr_    = prep_data["iqr"]
-    preprocessor.min_    = prep_data["min"]
-    preprocessor.range_  = prep_data["range"]
-    preprocessor.is_fitted = True
+    preprocessor.median_     = prep_data["median"]
+    preprocessor.iqr_        = prep_data["iqr"]
+    preprocessor.min_        = prep_data["min"]
+    preprocessor.range_      = prep_data["range"]
+    preprocessor.clip_lower_ = prep_data["clip_lower"]
+    preprocessor.clip_upper_ = prep_data["clip_upper"]
+    preprocessor.is_fitted   = True
 
     # ── AE ────────────────────────────────────────────────────
     ae_model = load_autoencoder(
@@ -250,7 +252,7 @@ def write_predictions(test_info, predictions, price_columns, out_path):
     ws.append(header)
 
     for info, pred_prices in zip(test_info, predictions):
-        row = list(pred_prices) + [str(info["date"]), info["type"]]
+        row = list(pred_prices) + [info["date"], info["type"]]
         ws.append(row)
 
     wb.save(out_path)

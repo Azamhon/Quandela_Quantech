@@ -205,8 +205,8 @@ class EnsembleQORC(nn.Module):
         parts = []
 
         for i, (proj, out_dim) in enumerate(zip(self.projections, self.output_dims)):
-            # Project to n_modes dimensions, then map to [0, 1] for phase encoding
-            projected = torch.sigmoid(proj(x))   # (batch, n_modes)
+            # Project to n_modes dimensions, then map to [0, 2*pi] for phase encoding
+            projected = torch.sigmoid(proj(x)) * (2 * math.pi)   # (batch, n_modes)
 
             if MERLIN_AVAILABLE and self.reservoirs is not None:
                 layer = self.reservoirs[i]
@@ -225,9 +225,9 @@ class EnsembleQORC(nn.Module):
         when MerLin is unavailable. NOT quantum — for dev/testing only.
         """
         device = x.device
-        torch.manual_seed(999)
-        W = torch.randn(x.shape[-1], out_dim, device=device)
-        b = torch.rand(out_dim, device=device) * 2 * math.pi
+        gen = torch.Generator(device=device).manual_seed(999)
+        W = torch.randn(x.shape[-1], out_dim, device=device, generator=gen)
+        b = torch.rand(out_dim, device=device, generator=gen) * 2 * math.pi
         feats = torch.sin(x @ W + b)
         # Shift + normalize to look like probabilities (positive, roughly summing to 1)
         feats = feats ** 2

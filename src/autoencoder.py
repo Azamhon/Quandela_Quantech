@@ -139,7 +139,7 @@ class AETrainer:
         self.criterion = AELoss(sparsity_lambda).to(device)
         self.optimizer = torch.optim.Adam(model.parameters(), lr=lr)
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            self.optimizer, mode="min", factor=0.5, patience=15, verbose=False
+            self.optimizer, mode="min", factor=0.5, patience=15
         )
         self.patience = patience
         self.history = {"train_loss": [], "val_loss": [], "val_recon": []}
@@ -336,7 +336,7 @@ if __name__ == "__main__":
 
     # 7. encode_partial with NaN
     print("\n[7] encode_partial (missing data) check...")
-    x_partial = torch.rand(4, 224)
+    x_partial = torch.rand(4, 224, device=device)
     x_partial[0, [5, 50, 100]] = float("nan")  # simulate missing
     model.eval()
     with torch.no_grad():

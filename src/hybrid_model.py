@@ -192,9 +192,8 @@ class HybridQRCModel(nn.Module):
         # MLP head predicts next latent code
         z_pred = self.head(quantum_feats, classical_context)
 
-        # Decode to full swaption surface (frozen AE decoder)
-        with torch.no_grad():
-            surface_pred = self.ae.decode(z_pred)
+        # Decode to full swaption surface (AE decoder frozen but grad flows through z_pred)
+        surface_pred = self.ae.decode(z_pred)
 
         return surface_pred, z_pred
 
