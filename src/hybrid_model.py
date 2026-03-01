@@ -51,10 +51,12 @@ def make_windows(latent_codes, window_size=5):
                = [z_{t-k}, ..., z_{t-1}, Δz_{t-1}]   (context + delta)
         y: np.ndarray (N-window_size, latent_dim)
                = z_t  (target: next latent code)
+        y_last: np.ndarray (N-window_size, latent_dim)
+               = z_{t-1}  (last code in window, for skip connection)
         indices: list of int — index t for each sample (for date alignment)
     """
     N, D = latent_codes.shape
-    X, y, indices = [], [], []
+    X, y, y_last, indices = [], [], [], []
 
     for t in range(window_size, N):
         window  = latent_codes[t - window_size : t]          # (window_size, D)
@@ -63,9 +65,13 @@ def make_windows(latent_codes, window_size=5):
         context = np.concatenate([flat, delta])              # (window_size*D + D,)
         X.append(context)
         y.append(latent_codes[t])
+        y_last.append(window[-1])                            # z_{t-1} for residual
         indices.append(t)
 
-    return np.array(X, dtype=np.float32), np.array(y, dtype=np.float32), indices
+    return (np.array(X, dtype=np.float32),
+            np.array(y, dtype=np.float32),
+            np.array(y_last, dtype=np.float32),
+            indices)
 
 
 # ─────────────────────────────────────────────────────────────
@@ -252,7 +258,7 @@ if __name__ == "__main__":
     # 1. make_windows
     print("\n[1] make_windows...")
     fake_latent = np.random.randn(50, LATENT_DIM).astype(np.float32)
-    X, y, idx = make_windows(fake_latent, window_size=WINDOW)
+    X, y, y_last, idx = make_windows(fake_latent, window_size=WINDOW)
     expected_classical_dim = LATENT_DIM * (WINDOW + 1)
     print(f"  X shape: {X.shape}  (expected: ({50-WINDOW}, {expected_classical_dim}))")
     print(f"  y shape: {y.shape}  (expected: ({50-WINDOW}, {LATENT_DIM}))")

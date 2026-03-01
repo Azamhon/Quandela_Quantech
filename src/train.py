@@ -170,16 +170,18 @@ def precompute_quantum_features(cfg, device, X_context):
 # Phase 4: Train ClassicalHead
 # ─────────────────────────────────────────────────────────────
 
-def train_hybrid_head(cfg, device, ae_model, X_context, Q_features, y_latent):
+def train_hybrid_head(cfg, device, ae_model, X_context, Q_features, y_latent, y_last):
     """
     Train the ClassicalHead on pre-computed quantum + classical features.
 
-    The AE decoder is used in the loss (frozen) to get the surface loss term.
+    The head predicts a DELTA which is added to z_{t-1} (skip connection).
+    This prevents autoregressive collapse to the mean.
 
     Args:
         X_context  : (N, classical_dim)   — windowed latent context
         Q_features : (N, quantum_dim)     — pre-computed Fock probabilities
-        y_latent   : (N, latent_dim)      — target latent codes
+        y_latent   : (N, latent_dim)      — target latent codes (absolute)
+        y_last     : (N, latent_dim)      — z_{t-1} for skip connection
     """
     print_section("Phase 4 — Train Classical Head")
 
@@ -190,16 +192,18 @@ def train_hybrid_head(cfg, device, ae_model, X_context, Q_features, y_latent):
     n_train    = n_total - val_split
 
     # ── Tensors ──
-    Xc_tr = torch.tensor(X_context[:n_train],   dtype=torch.float32)
-    Xq_tr = torch.tensor(Q_features[:n_train],  dtype=torch.float32)
-    y_tr  = torch.tensor(y_latent[:n_train],     dtype=torch.float32)
+    Xc_tr  = torch.tensor(X_context[:n_train],   dtype=torch.float32)
+    Xq_tr  = torch.tensor(Q_features[:n_train],  dtype=torch.float32)
+    y_tr   = torch.tensor(y_latent[:n_train],     dtype=torch.float32)
+    yl_tr  = torch.tensor(y_last[:n_train],       dtype=torch.float32)
 
-    Xc_vl = torch.tensor(X_context[n_train:],   dtype=torch.float32)
-    Xq_vl = torch.tensor(Q_features[n_train:],  dtype=torch.float32)
-    y_vl  = torch.tensor(y_latent[n_train:],     dtype=torch.float32)
+    Xc_vl  = torch.tensor(X_context[n_train:],   dtype=torch.float32)
+    Xq_vl  = torch.tensor(Q_features[n_train:],  dtype=torch.float32)
+    y_vl   = torch.tensor(y_latent[n_train:],     dtype=torch.float32)
+    yl_vl  = torch.tensor(y_last[n_train:],       dtype=torch.float32)
 
     train_loader = DataLoader(
-        TensorDataset(Xc_tr, Xq_tr, y_tr),
+        TensorDataset(Xc_tr, Xq_tr, y_tr, yl_tr),
         batch_size=hcfg["batch_size"],
         shuffle=True,
     )
@@ -233,11 +237,12 @@ def train_hybrid_head(cfg, device, ae_model, X_context, Q_features, y_latent):
         # ── Train ──
         head.train()
         train_total = 0.0
-        for xc_b, xq_b, y_b in train_loader:
-            xc_b, xq_b, y_b = (t.to(device) for t in (xc_b, xq_b, y_b))
+        for xc_b, xq_b, y_b, yl_b in train_loader:
+            xc_b, xq_b, y_b, yl_b = (t.to(device) for t in (xc_b, xq_b, y_b, yl_b))
             optimizer.zero_grad()
 
-            z_pred = head(xq_b, xc_b)
+            delta = head(xq_b, xc_b)
+            z_pred = yl_b + delta                        # skip connection: z_pred = z_{t-1} + Δ
             surface_pred = ae_model.decode(z_pred)       # grad flows through decoder to z_pred
             with torch.no_grad():
                 surface_true = ae_model.decode(y_b)      # target — no grad needed
@@ -253,10 +258,12 @@ def train_hybrid_head(cfg, device, ae_model, X_context, Q_features, y_latent):
         # ── Validate ──
         head.eval()
         with torch.no_grad():
-            xc_v = Xc_vl.to(device)
-            xq_v = Xq_vl.to(device)
-            y_v  = y_vl.to(device)
-            z_pred_v      = head(xq_v, xc_v)
+            xc_v  = Xc_vl.to(device)
+            xq_v  = Xq_vl.to(device)
+            y_v   = y_vl.to(device)
+            yl_v  = yl_vl.to(device)
+            delta_v        = head(xq_v, xc_v)
+            z_pred_v       = yl_v + delta_v              # skip connection
             surface_pred_v = ae_model.decode(z_pred_v)
             surface_true_v = ae_model.decode(y_v)
             val_loss, val_lat, val_surf = criterion(
@@ -362,7 +369,7 @@ def main(args):
 
     # ── Build windowed context ─────────────────────────────────
     window_size = cfg["hybrid_model"]["window_size"]
-    X_context, y_latent, _ = make_windows(latent_codes, window_size=window_size)
+    X_context, y_latent, y_last, _ = make_windows(latent_codes, window_size=window_size)
     print(f"\n  Windows shape  : {X_context.shape}")
     print(f"  Targets shape  : {y_latent.shape}")
 
@@ -379,7 +386,7 @@ def main(args):
         print(f"  Loaded quantum features: {Q_features.shape}")
 
     # ── Phase 4: Train head ────────────────────────────────────
-    head = train_hybrid_head(cfg, device, ae_model, X_context, Q_features, y_latent)
+    head = train_hybrid_head(cfg, device, ae_model, X_context, Q_features, y_latent, y_last)
 
     print_section("Training Complete")
     print(f"  All outputs saved to: {cfg['data']['output_dir']}/")

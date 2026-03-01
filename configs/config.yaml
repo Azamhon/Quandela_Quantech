@@ -49,5 +49,5 @@ hybrid_model:
   surface_loss_weight: 0.1  # alpha in combined loss
   gradient_clip: 1.0
 
-device: "cuda"  # "cuda", "cpu", or "mps"
+device: "cpu"  # "cuda", "cpu", or "mps"
 seed: 42

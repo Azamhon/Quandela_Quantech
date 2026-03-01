@@ -126,9 +126,10 @@ def build_context(latent_window):
 # ─────────────────────────────────────────────────────────────
 
 @torch.no_grad()
-def predict_next_latent(context_vec, ensemble, qf_norm, head, device):
+def predict_next_latent(context_vec, last_z, ensemble, qf_norm, head, device):
     """
     context_vec: np.ndarray (classical_dim,)
+    last_z:      np.ndarray (latent_dim,) — z_{t-1} for skip connection
     Returns: np.ndarray (latent_dim,)
     """
     ctx_t = torch.tensor(context_vec, dtype=torch.float32).unsqueeze(0).to(device)
@@ -138,8 +139,10 @@ def predict_next_latent(context_vec, ensemble, qf_norm, head, device):
     q_n   = qf_norm.transform(q_raw)                                  # normalised
     q_t   = torch.tensor(q_n, dtype=torch.float32).to(device)
 
-    # Head → latent prediction
-    z_pred = head(q_t, ctx_t)                                         # (1, latent_dim)
+    # Head predicts delta, add skip connection
+    last_t = torch.tensor(last_z, dtype=torch.float32).unsqueeze(0).to(device)
+    delta  = head(q_t, ctx_t)                                         # (1, latent_dim)
+    z_pred = last_t + delta                                           # skip connection
     return z_pred.cpu().numpy()[0]
 
 
@@ -165,8 +168,9 @@ def predict_future(
     predictions = []
 
     for step in range(n_steps):
-        ctx  = build_context(window)
-        z_next = predict_next_latent(ctx, ensemble, qf_norm, head, device)
+        ctx    = build_context(window)
+        last_z = window[-1]   # z_{t-1} for skip connection
+        z_next = predict_next_latent(ctx, last_z, ensemble, qf_norm, head, device)
 
         # Decode to normalised surface
         z_t   = torch.tensor(z_next, dtype=torch.float32).unsqueeze(0).to(device)
