@@ -22,15 +22,24 @@ class SwaptionPreprocessor:
         # MinMaxScaler params (per column)
         self.min_ = None
         self.range_ = None
+        # Winsorize clip bounds (per column, fitted on training data)
+        self.clip_lower_ = None
+        self.clip_upper_ = None
 
-    def _winsorize(self, data):
-        """Clip each column to [lower_pct, upper_pct] percentiles."""
-        result = np.copy(data)
+    def _winsorize_fit(self, data):
+        """Compute and store clip bounds from training data, then clip."""
         lo, hi = self.winsorize_limits
+        self.clip_lower_ = np.percentile(data, lo * 100, axis=0)
+        self.clip_upper_ = np.percentile(data, (1 - hi) * 100, axis=0)
+        return self._winsorize_transform(data)
+
+    def _winsorize_transform(self, data):
+        """Clip each column to the training-fitted [lower, upper] bounds."""
+        result = np.copy(data)
         for col in range(result.shape[1]):
-            lower = np.percentile(result[:, col], lo * 100)
-            upper = np.percentile(result[:, col], (1 - hi) * 100)
-            result[:, col] = np.clip(result[:, col], lower, upper)
+            result[:, col] = np.clip(
+                result[:, col], self.clip_lower_[col], self.clip_upper_[col]
+            )
         return result
 
     def fit_transform(self, data):
@@ -41,8 +50,8 @@ class SwaptionPreprocessor:
         Returns:
             Normalized data in [0, 1], shape (n_timesteps, 224)
         """
-        # Step 1: Winsorize outliers
-        data_clean = self._winsorize(data)
+        # Step 1: Winsorize outliers (fit bounds on training data)
+        data_clean = self._winsorize_fit(data)
 
         # Step 2: RobustScaler (median / IQR)
         self.median_ = np.median(data_clean, axis=0)
@@ -62,9 +71,9 @@ class SwaptionPreprocessor:
         return data_normalized.astype(np.float32)
 
     def transform(self, data):
-        """Transform using fitted scalers."""
+        """Transform using fitted scalers (uses training-fitted winsorize bounds)."""
         assert self.is_fitted, "Call fit_transform first"
-        data_clean = self._winsorize(data)
+        data_clean = self._winsorize_transform(data)
         data_robust = (data_clean - self.median_) / self.iqr_
         data_normalized = (data_robust - self.min_) / self.range_
         return data_normalized.astype(np.float32)

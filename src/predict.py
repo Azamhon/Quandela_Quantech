@@ -51,10 +51,12 @@ def load_artefacts(cfg, device):
     # ── Preprocessor ──────────────────────────────────────────
     prep_data = np.load(os.path.join(out, "preprocessor.npz"))
     preprocessor = SwaptionPreprocessor()
-    preprocessor.median_ = prep_data["median"]
-    preprocessor.iqr_    = prep_data["iqr"]
-    preprocessor.min_    = prep_data["min"]
-    preprocessor.range_  = prep_data["range"]
+    preprocessor.median_     = prep_data["median"]
+    preprocessor.iqr_        = prep_data["iqr"]
+    preprocessor.min_        = prep_data["min"]
+    preprocessor.range_      = prep_data["range"]
+    preprocessor.clip_lower_ = prep_data["clip_lower"]
+    preprocessor.clip_upper_ = prep_data["clip_upper"]
     preprocessor.is_fitted = True
 
     # ── AE ────────────────────────────────────────────────────
@@ -186,14 +188,15 @@ def predict_future(
 
 @torch.no_grad()
 def impute_missing(
-    partial_prices, preprocessor, ae_model, device
+    partial_prices, preprocessor, ae_model, device,
+    train_prices=None, row_date=None
 ):
     """
     Impute missing values in a partial swaption surface.
 
     Strategy:
-      1. Fill NaN positions with column medians from training (preprocessor)
-         before normalising — gives a reasonable starting point.
+      1. Fill NaN positions with values from the temporally nearest training
+         row (if available), falling back to training column medians.
       2. Normalise the partially-filled surface.
       3. Pass through denoising AE (which was trained to reconstruct from
          masked inputs → naturally handles missing values).
@@ -203,20 +206,30 @@ def impute_missing(
 
     Args:
         partial_prices: np.ndarray (224,) with np.nan where data is missing
+        train_prices:   np.ndarray (N, 224) raw training prices (optional)
+        row_date:       date of this row for temporal neighbor lookup (optional)
 
     Returns:
         full_prices: np.ndarray (224,) all values filled
     """
     nan_mask = np.isnan(partial_prices)
 
-    # Fill NaN with training medians before normalising
+    # Fill NaN — prefer temporally nearest training row, fall back to medians
     filled = partial_prices.copy()
-    filled[nan_mask] = preprocessor.median_[nan_mask]   # training median in raw scale
+    if train_prices is not None:
+        # Use the observed (non-NaN) columns to find the closest training row
+        obs_mask = ~nan_mask
+        obs_vals = partial_prices[obs_mask]
+        dists = np.sqrt(((train_prices[:, obs_mask] - obs_vals) ** 2).mean(axis=1))
+        nearest_idx = int(np.argmin(dists))
+        filled[nan_mask] = train_prices[nearest_idx, nan_mask]
+    else:
+        filled[nan_mask] = preprocessor.median_[nan_mask]
 
     # Normalise
     norm = preprocessor.transform(filled.reshape(1, -1))[0]  # (224,)
 
-    # AE reconstruction (encode_partial handles any residual NaN safely)
+    # AE reconstruction (denoising AE reconstructs full surface)
     norm_t = torch.tensor(norm, dtype=torch.float32).unsqueeze(0).to(device)
     z      = ae_model.encode(norm_t)
     recon  = ae_model.decode(z).cpu().numpy()[0]          # (224,) in [0,1]
@@ -278,6 +291,9 @@ def main(args):
 
     window_size = cfg["hybrid_model"]["window_size"]
 
+    # Load raw training prices for nearest-neighbor imputation
+    _, _, train_prices_raw = load_train_data(cfg["data"]["train_path"])
+
     # ── Load test data ─────────────────────────────────────────
     print("\n[2] Loading test data...")
     test_info, price_columns = load_test_data(cfg["data"]["test_path"])
@@ -303,12 +319,13 @@ def main(args):
         device       = device,
     )
 
-    # Task B: missing data imputation
+    # Task B: missing data imputation (uses nearest training row for fill)
     missing_prices = []
     for info in test_info:
         if info["type"] == "Missing data":
             full = impute_missing(
-                info["values"], preprocessor, ae_model, device
+                info["values"], preprocessor, ae_model, device,
+                train_prices=train_prices_raw, row_date=info["date"]
             )
             missing_prices.append(full)
 

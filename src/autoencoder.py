@@ -43,7 +43,10 @@ class SparseDenosingAE(nn.Module):
         for h in hidden_dims:
             enc_layers += [nn.Linear(prev, h), nn.ReLU()]
             prev = h
-        enc_layers += [nn.Linear(prev, latent_dim), nn.ReLU()]
+        # ELU at bottleneck: allows small negative values, prevents
+        # "dying neuron" problem (ReLU → dead dims) while L1 penalty
+        # still encourages sparsity
+        enc_layers += [nn.Linear(prev, latent_dim), nn.ELU()]
         self.encoder = nn.Sequential(*enc_layers)
 
         # ── Decoder ──────────────────────────────
@@ -139,7 +142,7 @@ class AETrainer:
         self.criterion = AELoss(sparsity_lambda).to(device)
         self.optimizer = torch.optim.Adam(model.parameters(), lr=lr)
         self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            self.optimizer, mode="min", factor=0.5, patience=15, verbose=False
+            self.optimizer, mode="min", factor=0.5, patience=15
         )
         self.patience = patience
         self.history = {"train_loss": [], "val_loss": [], "val_recon": []}
@@ -300,6 +303,8 @@ if __name__ == "__main__":
     print(f"  Reconstruction:{x_hat.shape} (min={x_hat.min():.4f}, max={x_hat.max():.4f})")
     assert x_hat.shape == x_dummy.shape, "Output shape mismatch!"
     assert z.shape == (16, 20), "Latent shape mismatch!"
+    # ELU bottleneck allows small negatives in z, decoder Sigmoid still in [0,1]
+    assert z.min() >= -1.0, f"Latent codes too negative: {z.min():.4f}"
     assert x_hat.min() >= 0.0 and x_hat.max() <= 1.0, "Sigmoid output out of [0,1]!"
     print("  PASSED")
 

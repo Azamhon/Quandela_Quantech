@@ -221,7 +221,7 @@ def train_hybrid_head(cfg, device, ae_model, X_context, Q_features, y_latent):
     criterion = HybridLoss(surface_weight=hcfg["surface_loss_weight"])
     optimizer = torch.optim.Adam(head.parameters(), lr=hcfg["learning_rate"])
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, mode="min", factor=0.5, patience=20, verbose=False
+        optimizer, mode="min", factor=0.5, patience=20
     )
 
     ae_model.eval()
@@ -238,8 +238,10 @@ def train_hybrid_head(cfg, device, ae_model, X_context, Q_features, y_latent):
             optimizer.zero_grad()
 
             z_pred = head(xq_b, xc_b)
+            # surface_pred must be OUTSIDE no_grad so gradients flow
+            # through the frozen decoder back to z_pred → head
+            surface_pred = ae_model.decode(z_pred)
             with torch.no_grad():
-                surface_pred  = ae_model.decode(z_pred)
                 surface_true  = ae_model.decode(y_b)
 
             loss, _, _ = criterion(z_pred, y_b, surface_pred, surface_true)
@@ -329,6 +331,8 @@ def main(args):
         iqr=preprocessor.iqr_,
         min=preprocessor.min_,
         range=preprocessor.range_,
+        clip_lower=preprocessor.clip_lower_,
+        clip_upper=preprocessor.clip_upper_,
     )
     print(f"  Preprocessor saved → {prep_path}")
 
