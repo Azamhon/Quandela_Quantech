@@ -154,7 +154,7 @@ class EnsembleQORC(nn.Module):
             # Fallback mode: random Gaussian features (for offline testing only)
             self.reservoirs = None
             for cfg in configs:
-                proj = self._make_projection(cfg["n_modes"])
+                proj = self._make_projection(cfg["n_modes"], seed=cfg["seed"])
                 self.projections.append(proj)
                 self.output_dims.append(fock_output_size(
                     cfg["n_modes"], cfg["n_photons"], use_fock
@@ -164,17 +164,21 @@ class EnsembleQORC(nn.Module):
                 "(random Gaussian features). Install merlinquantum for real quantum features."
             )
 
-    def _make_projection(self, n_modes):
-        """Fixed orthogonal linear projection: input_dim → n_modes."""
+    def _make_projection(self, n_modes, seed=0):
+        """Fixed orthogonal linear projection: input_dim → n_modes.
+        Uses a dedicated seed so the result is identical in train and predict."""
+        rng_state = torch.random.get_rng_state()
+        torch.manual_seed(seed + 10000)  # offset to avoid collision with other seeds
         proj = nn.Linear(self.input_dim, n_modes, bias=False)
         nn.init.orthogonal_(proj.weight)
         proj.weight.requires_grad_(False)
+        torch.random.set_rng_state(rng_state)  # restore global RNG
         return proj
 
     def _build_reservoirs(self):
         """Build all QORC layers (requires MerLin)."""
         for cfg in self.configs:
-            proj = self._make_projection(cfg["n_modes"])
+            proj = self._make_projection(cfg["n_modes"], seed=cfg["seed"])
             self.projections.append(proj)
 
             layer, out_dim = _build_qorc_circuit(

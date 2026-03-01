@@ -255,7 +255,7 @@ def save_autoencoder(model, path):
 
 def load_autoencoder(path, input_dim=224, hidden_dims=(128, 64), latent_dim=20, device="cpu"):
     model = SparseDenosingAE(input_dim, hidden_dims, latent_dim)
-    model.load_state_dict(torch.load(path, map_location=device))
+    model.load_state_dict(torch.load(path, map_location=device, weights_only=True))
     model.to(device)
     model.eval()
     print(f"  Loaded AE weights ← {path}")
