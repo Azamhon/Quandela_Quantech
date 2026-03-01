@@ -98,11 +98,14 @@ class SwaptionPreprocessor:
 def load_train_data(path="DATASETS/train.xlsx"):
     """
     Load training data.
+
     Returns:
         dates: list of date strings
         price_columns: list of column header strings
-        prices: np.ndarray of shape (494, 224)
+        prices: np.ndarray of shape (N, 224)
     """
+    import warnings
+
     wb = load_workbook(path, read_only=True)
     ws = wb.active
 
@@ -112,16 +115,38 @@ def load_train_data(path="DATASETS/train.xlsx"):
     dates = []
     prices = []
     for row in ws.iter_rows(min_row=2, values_only=True):
+        row = list(row)
+        if len(row) == 0 or row[0] is None:
+            break  # end of data
         dates.append(row[0])
-        prices.append([float(v) for v in row[1:]])
+        row_prices = []
+        for v in row[1:]:
+            if v is None:
+                row_prices.append(np.nan)
+            else:
+                row_prices.append(float(v))
+        prices.append(row_prices)
 
     wb.close()
-    return dates, price_columns, np.array(prices, dtype=np.float32)
+
+    prices_arr = np.array(prices, dtype=np.float32)
+    n_nan = int(np.isnan(prices_arr).sum())
+    if n_nan > 0:
+        warnings.warn(
+            f"Training data contains {n_nan} NaN value(s) — consider inspecting the source file."
+        )
+    return dates, price_columns, prices_arr
 
 
 def load_test_data(path="DATASETS/test_template.xlsx"):
     """
     Load test template.
+
+    The template has format:  Type | 224 price columns | Date
+    Rows after the real data section are empty (openpyxl returns empty
+    tuples in read-only mode).  We stop at the first empty or
+    None-typed row — these are template padding, not data.
+
     Returns:
         test_info: list of dicts with 'type', 'date', 'values' (with NaN for missing)
         price_columns: list of column header strings (224 cols)
@@ -135,11 +160,17 @@ def load_test_data(path="DATASETS/test_template.xlsx"):
 
     test_info = []
     for row in ws.iter_rows(min_row=2, values_only=True):
-        row_type = row[0]
+        row = list(row)  # tuple → list for safe length check
+
+        # End of real data: empty row or row whose Type cell is blank
+        if len(row) == 0 or row[0] is None:
+            break
+
+        row_type = str(row[0]).strip()
         row_date = row[-1]
         values = []
         for v in row[1:-1]:
-            if v == "NA" or v is None:
+            if v is None or (isinstance(v, str) and v.strip().upper() == "NA"):
                 values.append(np.nan)
             else:
                 values.append(float(v))

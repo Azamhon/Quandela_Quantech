@@ -58,7 +58,9 @@ def make_windows(latent_codes, window_size=5):
 
     for t in range(window_size, N):
         window  = latent_codes[t - window_size : t]          # (window_size, D)
-        delta   = window[-1] - window[-2]                    # first difference
+        delta   = (window[-1] - window[-2]                   # first difference
+                   if window_size >= 2
+                   else np.zeros(D, dtype=latent_codes.dtype))
         flat    = window.reshape(-1)                         # (window_size*D,)
         context = np.concatenate([flat, delta])              # (window_size*D + D,)
         X.append(context)

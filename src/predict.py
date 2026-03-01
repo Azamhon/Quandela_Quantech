@@ -253,7 +253,16 @@ def write_predictions(test_info, predictions, price_columns, out_path):
     Write predictions to xlsx matching the sample output format.
 
     Output column order: [224 price cols | Date | Type]
+
+    Type mapping (following sample convention):
+        "Future prediction" → "Complete"
+        "Missing data"      → "Missing Data"
     """
+    TYPE_MAP = {
+        "Future prediction": "Complete",
+        "Missing data":      "Missing Data",
+    }
+
     wb = Workbook()
     ws = wb.active
     ws.title = "Predictions"
@@ -263,7 +272,11 @@ def write_predictions(test_info, predictions, price_columns, out_path):
     ws.append(header)
 
     for info, pred_prices in zip(test_info, predictions):
-        row = list(pred_prices) + [str(info["date"]), info["type"]]
+        out_type = TYPE_MAP.get(info["type"], info["type"])
+        date_str = (info["date"].strftime("%Y-%m-%d")
+                    if hasattr(info["date"], "strftime")
+                    else str(info["date"]))
+        row = [float(v) for v in pred_prices] + [date_str, out_type]
         ws.append(row)
 
     wb.save(out_path)
