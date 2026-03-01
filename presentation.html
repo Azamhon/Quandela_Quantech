@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QUANTECH — Hybrid Photonic QRC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+
+:root{
+  --bg:#f0f0f5;
+  --bg2:#e8e8f0;
+  --blue:#3b7dff;
+  --blue-b:#5b9aff;
+  --blue-e:#7b6df0;
+  --cyan:#00c9db;
+  --rose:#e83562;
+  --rose-s:#ff4d7a;
+  --pink:#d946a8;
+  --pink-s:#f772c8;
+  --amber:#e89b00;
+  --green:#00b878;
+  --green-b:#28d89a;
+  --white:#ffffff;
+  --dark:#0c0e24;
+  --d2:#1a1d3a;
+  --d3:#2a2d4a;
+  --g1:#f8f9fc;
+  --g2:#e9ecf2;
+  --g3:#6b7280;
+  --g4:#9ca3af;
+  --g5:#bec5cf;
+  --fd:'Orbitron',sans-serif;
+  --fb:'Inter',sans-serif;
+  --fm:'JetBrains Mono',monospace;
+}
+
+html{font-size:16px}
+body{font-family:var(--fb);background:var(--bg);color:var(--dark);overflow:hidden;height:100vh;width:100vw}
+
+/* ═══ WHITE NOISE GRAIN ═══ */
+body::before{
+  content:'';position:fixed;inset:0;z-index:9998;pointer-events:none;opacity:.18;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='wn'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.2' numOctaves='4' seed='42' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23wn)' opacity='1'/%3E%3C/svg%3E");
+  background-size:256px 256px;
+  mix-blend-mode:multiply;
+}
+body::after{
+  content:'';position:fixed;inset:0;z-index:9999;pointer-events:none;opacity:.06;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='wn2'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='2.5' numOctaves='2' seed='7' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncR type='table' tableValues='1 1'/%3E%3CfeFuncG type='table' tableValues='1 1'/%3E%3CfeFuncB type='table' tableValues='1 1'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23wn2)' opacity='1'/%3E%3C/svg%3E");
+  background-size:128px 128px;
+  mix-blend-mode:screen;
+}
+
+/* ═══ SLIDES ═══ */
+.deck{width:100vw;height:100vh;position:relative}
+.slide{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  opacity:0;pointer-events:none;transition:opacity .5s ease,transform .5s ease;
+  transform:scale(.98);padding:2.5rem 4rem;overflow:hidden;
+}
+.slide.active{opacity:1;pointer-events:auto;transform:scale(1)}
+.si{width:100%;max-width:1150px;margin:0 auto;position:relative;z-index:2}
+
+/* ═══ NAV ═══ */
+.nav{
+  position:fixed;bottom:1.5rem;left:50%;transform:translateX(-50%);z-index:100;
+  display:flex;align-items:center;gap:.6rem;
+  background:rgba(255,255,255,.85);backdrop-filter:blur(16px);
+  border:1px solid rgba(0,0,0,.08);border-radius:99px;padding:.45rem 1rem;
+  box-shadow:0 4px 24px rgba(0,0,0,.08);
+}
+.dot{width:8px;height:8px;border-radius:50%;border:none;cursor:pointer;background:rgba(0,0,0,.12);transition:all .25s}
+.dot.on{background:var(--blue);box-shadow:0 0 10px rgba(59,125,255,.5)}
+.dot:hover{background:rgba(0,0,0,.25)}
+.nc{font-family:var(--fm);font-size:.65rem;color:var(--g3);min-width:3rem;text-align:center}
+.nb{background:none;border:1px solid rgba(0,0,0,.1);color:var(--dark);width:28px;height:28px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:.75rem;transition:all .2s}
+.nb:hover{background:var(--blue);color:#fff;border-color:var(--blue)}
+
+/* ═══ TYPO ═══ */
+.hero-t{font-family:var(--fd);font-size:clamp(4.5rem,10vw,9rem);font-weight:900;letter-spacing:.12em;line-height:.95;text-transform:uppercase}
+.st{font-family:var(--fd);font-size:clamp(1.4rem,2.8vw,2.2rem);font-weight:700;letter-spacing:.06em;text-transform:uppercase;line-height:1.15;margin-bottom:.6rem;color:var(--dark)}
+.lbl{font-family:var(--fd);font-size:.55rem;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--blue);margin-bottom:.5rem;display:inline-block}
+.lr{color:var(--rose)}
+.sub{font-size:.82rem;font-weight:400;color:var(--g3);line-height:1.55;max-width:650px}
+
+/* ═══ LAYOUT ═══ */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem}
+.g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:.8rem}
+.fc{display:flex;flex-direction:column;gap:.7rem}
+
+/* ═══ CARD (glass on light) ═══ */
+.c{background:rgba(255,255,255,.65);border:1px solid rgba(0,0,0,.06);border-radius:14px;padding:1.1rem;transition:border-color .2s,box-shadow .2s;backdrop-filter:blur(8px)}
+.c:hover{border-color:rgba(59,125,255,.25);box-shadow:0 4px 20px rgba(59,125,255,.08)}
+.ch{background:linear-gradient(135deg,rgba(59,125,255,.08),rgba(232,53,98,.05));border-color:rgba(59,125,255,.15)}
+
+/* ═══ METRICS ═══ */
+.mb{font-family:var(--fd);font-size:clamp(1.8rem,3.5vw,3rem);font-weight:900;letter-spacing:.02em;line-height:1}
+.ml{font-size:.62rem;color:var(--g3);margin-top:.25rem;font-weight:500;letter-spacing:.04em;text-transform:uppercase}
+
+/* ═══ BADGES ═══ */
+.badge{display:inline-flex;align-items:center;gap:.3rem;padding:.22rem .65rem;border-radius:99px;font-family:var(--fd);font-size:.5rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+.bb{background:rgba(59,125,255,.12);color:var(--blue);border:1px solid rgba(59,125,255,.25)}
+.br{background:rgba(232,53,98,.1);color:var(--rose);border:1px solid rgba(232,53,98,.25)}
+.bg{background:rgba(0,184,120,.1);color:var(--green);border:1px solid rgba(0,184,120,.25)}
+.bc{background:rgba(0,201,219,.1);color:#0099aa;border:1px solid rgba(0,201,219,.25)}
+
+/* ═══ IMAGE PLACEHOLDER ═══ */
+.img-ph{
+  border-radius:12px;overflow:hidden;position:relative;
+  background:linear-gradient(135deg,rgba(59,125,255,.06),rgba(0,201,219,.08));
+  border:2px dashed rgba(59,125,255,.2);
+  display:flex;align-items:center;justify-content:center;flex-direction:column;gap:.4rem;
+  min-height:140px;color:var(--g3);font-size:.7rem;text-align:center;padding:1rem;
+}
+.img-ph .ph-icon{font-size:2rem;opacity:.4}
+.img-ph .ph-label{font-family:var(--fd);font-size:.5rem;letter-spacing:.1em;font-weight:600;color:var(--blue);text-transform:uppercase}
+.img-ph .ph-file{font-family:var(--fm);font-size:.55rem;color:var(--rose);margin-top:.15rem;background:rgba(232,53,98,.06);padding:.15rem .5rem;border-radius:4px}
+.img-ph img{width:100%;height:100%;object-fit:cover;position:absolute;inset:0;border-radius:10px}
+
+/* ═══ ARCH ═══ */
+.af{display:flex;flex-direction:column;align-items:center;gap:0;width:100%}
+.ab{width:100%;max-width:560px;padding:.55rem 1rem;border-radius:8px;text-align:center;font-weight:600;font-size:.72rem}
+.aa{width:2px;height:18px;background:linear-gradient(to bottom,var(--blue),var(--rose));position:relative}
+.aa::after{content:'';position:absolute;bottom:-3px;left:50%;transform:translateX(-50%);border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid var(--rose)}
+.a1x{background:rgba(0,0,0,.03);border:1px solid rgba(0,0,0,.06)}
+.a2x{background:rgba(0,201,219,.08);border:1px solid rgba(0,201,219,.18)}
+.a3x{background:rgba(59,125,255,.08);border:1px solid rgba(59,125,255,.18)}
+.aq{background:rgba(232,53,98,.07);border:1px solid rgba(232,53,98,.2)}
+.ah{background:linear-gradient(90deg,rgba(232,53,98,.06),rgba(59,125,255,.06));border:1px solid rgba(232,53,98,.15)}
+.adx{background:rgba(0,201,219,.06);border:1px solid rgba(0,201,219,.15)}
+.ad{font-size:.52rem;font-weight:400;color:var(--g3);margin-top:.12rem}
+
+/* ═══ TABLE ═══ */
+table{width:100%;border-collapse:collapse;font-size:.7rem}
+th{text-align:left;padding:.4rem .7rem;font-family:var(--fd);font-weight:600;color:var(--g3);font-size:.5rem;letter-spacing:.1em;text-transform:uppercase;border-bottom:1px solid rgba(0,0,0,.06)}
+td{padding:.4rem .7rem;border-bottom:1px solid rgba(0,0,0,.04);color:var(--d3)}
+
+/* ═══ CODE ═══ */
+.code{background:var(--dark);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:.75rem;font-family:var(--fm);font-size:.6rem;line-height:1.65;color:var(--g5);white-space:pre}
+.ck{color:var(--rose-s)}.cn{color:var(--cyan)}.cc{color:#666;font-style:italic}
+
+/* ═══ ORBS (pastel on white) ═══ */
+.orb{position:absolute;border-radius:50%;filter:blur(100px);pointer-events:none;opacity:.35}
+
+/* ═══ LIST ═══ */
+.cl{list-style:none;display:flex;flex-direction:column;gap:.3rem}
+.cl li{display:flex;align-items:flex-start;gap:.45rem;font-size:.72rem;line-height:1.45;color:var(--d3)}
+.ic{flex-shrink:0;width:16px;height:16px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.48rem;margin-top:.1rem}
+.ib{background:rgba(59,125,255,.15);color:var(--blue)}
+.ir{background:rgba(232,53,98,.12);color:var(--rose)}
+.ig{background:rgba(0,184,120,.12);color:var(--green)}
+.ic2{background:rgba(0,201,219,.12);color:#0099aa}
+
+/* ═══ ANIM ═══ */
+@keyframes up{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:.25}50%{opacity:.5}}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+.slide.active .a1{animation:up .5s .05s both}
+.slide.active .a2{animation:up .5s .15s both}
+.slide.active .a3{animation:up .5s .28s both}
+.slide.active .a4{animation:up .5s .4s both}
+.slide.active .a5{animation:up .5s .52s both}
+
+/* ═══ DARK SLIDES (hero/conclusion) ═══ */
+.slide-dark{color:#fff}
+.slide-dark .st,.slide-dark .sub,.slide-dark .cl li,.slide-dark td{color:rgba(255,255,255,.85)}
+.slide-dark .lbl{color:var(--pink-s)}
+.slide-dark .ml{color:rgba(255,255,255,.5)}
+.slide-dark .c{background:rgba(255,255,255,.06);border-color:rgba(255,255,255,.1)}
+.slide-dark .c:hover{border-color:rgba(255,255,255,.2);box-shadow:0 4px 20px rgba(0,0,0,.2)}
+
+@media(max-width:900px){.slide{padding:1.5rem 1.2rem}.g2,.g3,.g4{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- 0 — HERO (dark dramatic gradient)              -->
+<!-- ═══════════════════════════════════════════════ -->
+<section class="slide slide-dark active" data-s="0" style="background:linear-gradient(140deg,#0c0e28 0%,#1a2266 25%,#4a2070 48%,#a03058 70%,#e06050 88%,#f8c888 100%)">
+  <div class="orb" style="width:550px;height:550px;top:-200px;right:-80px;background:#00dde8;animation:pulse 6s infinite"></div>
+  <div class="orb" style="width:400px;height:400px;bottom:-130px;left:4%;background:#ff4d7a;animation:pulse 8s infinite 2s"></div>
+  <div class="si" style="text-align:center">
+    <div class="a1"><span class="lbl" style="color:var(--pink-s)">Q-VOLUTION HACKATHON 2026 · QUANDELA CHALLENGE</span></div>
+    <h1 class="hero-t a2" style="background:linear-gradient(135deg,#fff 20%,#ffb6d9 50%,#5b9aff 80%,#00dde8 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin:.3rem 0 .8rem">QUANTECH</h1>
+    <p class="a3" style="font-size:clamp(.9rem,1.6vw,1.15rem);font-weight:300;color:rgba(255,255,255,.88);max-width:680px;margin:0 auto 1.4rem;line-height:1.55">
+      Photonic reservoir computing on a <strong style="font-weight:700;color:#fff">learned latent manifold</strong> — quantum optics' richness meets classical efficiency.
+    </p>
+    <div style="display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap" class="a4">
+      <span class="badge" style="background:rgba(0,221,232,.15);color:#5ee8f6;border:1px solid rgba(0,221,232,.35)">⚛ ENSEMBLE QORC</span>
+      <span class="badge" style="background:rgba(255,77,122,.15);color:#ff7a99;border:1px solid rgba(255,77,122,.35)">🧠 SPARSE DENOISING AE</span>
+      <span class="badge" style="background:rgba(0,184,120,.15);color:#5ee5b6;border:1px solid rgba(0,184,120,.35)">✓ MERLIN · PERCEVAL</span>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- 1 — CHALLENGE (light)                          -->
+<!-- ═══════════════════════════════════════════════ -->
+<section class="slide" data-s="1" style="background:linear-gradient(160deg,#f5f6fc 0%,#eaecfa 40%,#f0edf8 100%)">
+  <div class="orb" style="width:400px;height:400px;top:0%;right:5%;background:#b8d0ff;opacity:.5"></div>
+  <div class="orb" style="width:300px;height:300px;bottom:-5%;left:8%;background:#ffc8d8;opacity:.35"></div>
+  <div class="si">
+    <span class="lbl a1">01 · THE CHALLENGE</span>
+    <h2 class="st a2">SWAPTION PRICING<br>WITH QUANTUM ML</h2>
+    <div class="g2 a3">
+      <div>
+        <p class="sub" style="margin-bottom:1rem">Predict swaption prices and impute missing data using Quandela's MerLin — within strict photonic hardware limits.</p>
+        <div class="g3" style="gap:.7rem">
+          <div class="c" style="text-align:center">
+            <div class="mb" style="color:var(--blue)">494×224</div>
+            <div class="ml">Training surface</div>
+          </div>
+          <div class="c" style="text-align:center">
+            <div class="mb" style="color:var(--rose)">6 + 2</div>
+            <div class="ml">Test tasks</div>
+          </div>
+          <div class="c" style="text-align:center">
+            <div class="mb" style="color:var(--amber)">≤20/10</div>
+            <div class="ml">Modes/photons</div>
+          </div>
+        </div>
+        <div class="g2 a5" style="margin-top:.7rem">
+          <div class="c" style="border-left:3px solid var(--rose)">
+            <div style="font-weight:700;font-size:.68rem;margin-bottom:.3rem;color:var(--rose)">WHY IT'S HARD</div>
+            <ul class="cl">
+              <li><span class="ic ir">!</span>224-dim output — impossible for QC directly</li>
+              <li><span class="ic ir">!</span>Only 494 samples — DL alone overfits</li>
+              <li><span class="ic ir">!</span>No amplitude encoding on QPU</li>
+            </ul>
+          </div>
+          <div class="c" style="border-left:3px solid var(--blue)">
+            <div style="font-weight:700;font-size:.68rem;margin-bottom:.3rem;color:var(--blue)">JUDGING CRITERIA</div>
+            <ul class="cl">
+              <li><span class="ic ib">◆</span><strong>35%</strong> Accuracy & Technical</li>
+              <li><span class="ic ib">◆</span><strong>35%</strong> Creativity & Novelty</li>
+              <li><span class="ic ib">◆</span><strong>30%</strong> Presentation & Docs</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <!-- IMAGE: Swaption surface heatmap -->
+      <div class="img-ph a4" style="min-height:320px">
+        <div class="ph-icon">📊</div>
+        <div class="ph-label">Swaption Surface Heatmap</div>
+        <div>494 × 224 training matrix visualization</div>
+        <div class="ph-file">→ images/swaption_surface.png</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- 2 — ARCHITECTURE (light)                       -->
+<!-- ═══════════════════════════════════════════════ -->
+<section class="slide" data-s="2" style="background:linear-gradient(150deg,#f8f8ff 0%,#f0f2fa 50%,#eee8f5 100%)">
+  <div class="orb" style="width:400px;height:400px;bottom:-10%;left:-4%;background:#e0c8ff;opacity:.4"></div>
+  <div class="si">
+    <span class="lbl lr a1">02 · ARCHITECTURE</span>
+    <h2 class="st a2">END-TO-END HYBRID PIPELINE</h2>
+    <div class="g2 a3">
+      <div>
+        <p class="sub" style="margin-bottom:.8rem">Not PCA + VQC — <strong>Sparse Denoising AE</strong> + fixed <strong>Photonic QRC Ensemble</strong> + trainable <strong>MLP Head</strong>.</p>
+        <div class="af">
+          <div class="ab a1x"><span>📊</span> Raw Swaption Data <span class="ad">— 494 × 224</span></div>
+          <div class="aa"></div>
+          <div class="ab a2x"><span style="color:var(--cyan)">🔧</span> Robust Preprocessing <span class="ad">— Winsorize → RobustScaler → MinMax</span></div>
+          <div class="aa"></div>
+          <div class="ab a3x"><span style="color:var(--blue)">🧠</span> Sparse Denoising AE <span class="ad">— 224→128→64→<strong style="color:var(--blue)">20</strong></span></div>
+          <div class="aa"></div>
+          <div class="ab aq"><span style="color:var(--rose)">⚛</span> Ensemble QORC ×3 <span class="ad">— <strong style="color:var(--rose)">1,215</strong> Fock features</span></div>
+          <div class="aa"></div>
+          <div class="ab ah"><span style="color:var(--pink)">🎯</span> MLP Head <span class="ad">— 1,335 → 256 → 128 → 20</span></div>
+          <div class="aa"></div>
+          <div class="ab adx"><span style="color:var(--cyan)">📈</span> AE Decoder (frozen) <span class="ad">— 20 → <strong style="color:var(--cyan)">224 prices</strong></span></div>
+        </div>
+      </div>
+      <!-- IMAGE: Architecture diagram -->
+      <div class="img-ph a4" style="min-height:380px">
+        <div class="ph-icon">🏗️</div>
+        <div class="ph-label">Full Architecture Diagram</div>
+        <div>End-to-end pipeline flow visualization</div>
+        <div class="ph-file">→ images/architecture_diagram.png</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- 3 — DESIGN PHILOSOPHY (light)                  -->
+<!-- ═══════════════════════════════════════════════ -->
+<section class="slide" data-s="3" style="background:linear-gradient(160deg,#f6f8ff 0%,#eef0fa 50%,#f2f0f8 100%)">
+  <div class="orb" style="width:400px;height:400px;top:-12%;left:-5%;background:#a8c8ff;opacity:.35"></div>
+  <div class="si">
+    <span class="lbl a1">03 · DESIGN PHILOSOPHY</span>
+    <h2 class="st a2">EVERY DECISION IS<br>A LOGICAL CONSEQUENCE</h2>
+    <div class="g2 a3" style="margin-top:.6rem">
+      <div class="c" style="border-top:3px solid var(--blue)">
+        <div style="display:flex;gap:.4rem;align-items:center;margin-bottom:.4rem"><span class="badge bb" style="font-size:.42rem">AUTOENCODER</span><span style="font-weight:700;font-size:.72rem">Why not PCA?</span></div>
+        <ul class="cl">
+          <li><span class="ic ib">→</span>PCA is linear — swaptions are <em>nonlinear</em></li>
+          <li><span class="ic ib">→</span>Denoising AE = nonlinear manifold + imputation</li>
+          <li><span class="ic ib">→</span>L1 sparsity → each dim = distinct market factor</li>
+        </ul>
+      </div>
+      <div class="c" style="border-top:3px solid var(--rose)">
+        <div style="display:flex;gap:.4rem;align-items:center;margin-bottom:.4rem"><span class="badge br" style="font-size:.42rem">RESERVOIR</span><span style="font-weight:700;font-size:.72rem">Why not VQC?</span></div>
+        <ul class="cl">
+          <li><span class="ic ir">→</span>494 samples — circuits would <em>overfit instantly</em></li>
+          <li><span class="ic ir">→</span>Fixed reservoirs → zero barren plateaus</li>
+          <li><span class="ic ir">→</span>Random expansion + trained readout = optimal</li>
+        </ul>
+      </div>
+      <div class="c" style="border-top:3px solid var(--cyan)">
+        <div style="display:flex;gap:.4rem;align-items:center;margin-bottom:.4rem"><span class="badge bc" style="font-size:.42rem">PREDICTION</span><span style="font-weight:700;font-size:.72rem">Why latent space?</span></div>
+        <ul class="cl">
+          <li><span class="ic ic2">→</span>20-dim ≪ 224-dim — far easier optimization</li>
+          <li><span class="ic ic2">→</span>AE decoder constrains outputs to manifold</li>
+        </ul>
+      </div>
+      <div class="c" style="border-top:3px solid var(--pink)">
+        <div style="display:flex;gap:.4rem;align-items:center;margin-bottom:.4rem"><span class="badge br" style="font-size:.42rem">ENSEMBLE</span><span style="font-weight:700;font-size:.72rem">Why 3 reservoirs?</span></div>
+        <ul class="cl">
+          <li><span class="ic ir">→</span>Different photon counts = different Fock regions</li>
+          <li><span class="ic ir">→</span>Cubic + quartic + pairwise = physics diversity</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- 4 — QUANTUM ADVANTAGE (light with color wash)  -->
+<!-- ═══════════════════════════════════════════════ -->
+<section class="slide" data-s="4" style="background:linear-gradient(135deg,#f2f0fa 0%,#ece4f8 40%,#f8eaf0 70%,#eef2ff 100%)">
+  <div class="orb" style="width:450px;height:450px;top:-15%;right:-8%;background:#ffa0b8;opacity:.3"></div>
+  <div class="orb" style="width:300px;height:300px;bottom:-8%;left:10%;background:#80d8e8;opacity:.25"></div>
+  <div class="si">
+    <span class="lbl lr a1">04 · QUANTUM ADVANTAGE</span>
+    <h2 class="st a2">WHAT PHOTONICS GIVES US</h2>
+    <div class="g2 a3" style="margin-top:.8rem">
+      <div>
+        <div class="g2" style="gap:.7rem">
+          <div class="c ch" style="text-align:center;padding:1.1rem">
+            <div style="font-family:var(--fd);font-size:1.8rem;font-weight:900;color:var(--blue);margin-bottom:.2rem">∝ 2<sup style="font-size:.7rem">n</sup></div>
+            <div style="font-weight:700;font-size:.72rem;margin-bottom:.3rem">EXPONENTIAL FEATURES</div>
+            <div style="font-size:.6rem;color:var(--g3);line-height:1.4">3 photons in 12 modes → <strong style="color:var(--blue)">364</strong> Fock outcomes. Exponential to replicate classically.</div>
+          </div>
+          <div class="c ch" style="text-align:center;padding:1.1rem">
+            <div style="font-family:var(--fd);font-size:1.8rem;font-weight:900;color:var(--rose);margin-bottom:.2rem">#P</div>
+            <div style="font-weight:700;font-size:.72rem;margin-bottom:.3rem">PHOTON INTERFERENCE</div>
+            <div style="font-size:.6rem;color:var(--g3);line-height:1.4">Fock prob. ∝ <strong style="color:var(--rose)">permanent</strong> of unitary submatrix — #P-hard classically.</div>
+          </div>
+          <div class="c" style="text-align:center;padding:1.1rem">
+            <div style="font-size:1.4rem;margin-bottom:.2rem">🌊</div>
+            <div style="font-weight:700;font-size:.72rem;margin-bottom:.3rem">NATURAL NONLINEARITY</div>
+            <div style="font-size:.6rem;color:var(--g3);line-height:1.4">Multi-body correlations from physics — not random kitchen-sink.</div>
+          </div>
+          <div class="c" style="text-align:center;padding:1.1rem">
+            <div style="font-family:var(--fd);font-size:1rem;font-weight:700;color:var(--blue-e);margin-bottom:.2rem">U · PS · U</div>
+            <div style="font-weight:700;font-size:.72rem;margin-bottom:.3rem">SANDWICH CIRCUIT</div>
+            <div style="font-size:.6rem;color:var(--g3);line-height:1.4">Haar-random unitaries for maximal mixing, phase shifters encode features.</div>
+          </div>
+        </div>
+      </div>
+      <!-- IMAGE: Photonic circuit / MZI diagram -->
+      <div class="img-ph a4" style="min-height:320px">
+        <div class="ph-icon">⚛️</div>
+        <div class="ph-label">Photonic Circuit Diagram</div>
+        <div>MZI mesh / sandwich architecture<br>U · Phase Shifters · U</div>
+        <div class="ph-file">→ images/photonic_circuit.png</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- 5 — ENSEMBLE (light)                           -->
+<!-- ═══════════════════════════════════════════════ -->
+<section class="slide" data-s="5" style="background:linear-gradient(160deg,#f6f8ff 0%,#f0f2fa 60%,#f4f2f8 100%)">
+  <div class="orb" style="width:400px;height:400px;bottom:-12%;right:-5%;background:#a8c8ff;opacity:.3"></div>
+  <div class="si">
+    <span class="lbl a1">05 · ENSEMBLE QORC</span>
+    <h2 class="st a2">THREE RESERVOIRS, 1,215 FEATURES</h2>
+    <div class="g2 a3" style="margin-top:.8rem">
+      <div class="g3" style="gap:.7rem">
+        <div class="c" style="text-align:center">
+          <span class="badge bb" style="margin-bottom:.4rem">R1 — CUBIC</span>
+          <div class="mb" style="color:var(--blue);font-size:1.8rem;margin:.35rem 0">364</div>
+          <div class="ml">Fock features</div>
+          <div style="margin-top:.4rem;font-size:.65rem;color:var(--d3)"><strong>12</strong> modes · <strong>3</strong> photons</div>
+          <div style="font-size:.5rem;color:var(--g4);margin-top:.1rem">C(14,3) = 364</div>
+          <div style="margin-top:.35rem"><span class="badge bg" style="font-size:.38rem">✓ WITHIN LIMITS</span></div>
+        </div>
+        <div class="c" style="text-align:center">
+          <span class="badge br" style="margin-bottom:.4rem">R2 — QUARTIC</span>
+          <div class="mb" style="color:var(--rose);font-size:1.8rem;margin:.35rem 0">715</div>
+          <div class="ml">Fock features</div>
+          <div style="margin-top:.4rem;font-size:.65rem;color:var(--d3)"><strong>10</strong> modes · <strong>4</strong> photons</div>
+          <div style="font-size:.5rem;color:var(--g4);margin-top:.1rem">C(13,4) = 715</div>
+          <div style="margin-top:.35rem"><span class="badge bg" style="font-size:.38rem">✓ WITHIN LIMITS</span></div>
+        </div>
+        <div class="c" style="text-align:center">
+          <span class="badge bc" style="margin-bottom:.4rem">R3 — PAIRWISE</span>
+          <div class="mb" style="color:var(--green);font-size:1.8rem;margin:.35rem 0">136</div>
+          <div class="ml">Fock features</div>
+          <div style="margin-top:.4rem;font-size:.65rem;color:var(--d3)"><strong>16</strong> modes · <strong>2</strong> photons</div>
+          <div style="font-size:.5rem;color:var(--g4);margin-top:.1rem">C(17,2) = 136</div>
+          <div style="margin-top:.35rem"><span class="badge bg" style="font-size:.38rem">✓ WITHIN LIMITS</span></div>
+        </div>
+      </div>
+      <!-- IMAGE: Fock space / reservoir comparison -->
+      <div style="display:flex;flex-direction:column;gap:.7rem">
+        <div class="img-ph" style="flex:1">
+          <div class="ph-icon">📐</div>
+          <div class="ph-label">Fock Space Visualization</div>
+          <div>Feature counts per reservoir comparison</div>
+          <div class="ph-file">→ images/fock_features_bar.png</div>
+        </div>
+        <div class="c ch" style="text-align:center;padding:.6rem">
+          <span style="font-family:var(--fd);font-size:.9rem;font-weight:800;letter-spacing:.05em">
+            <span style="color:var(--blue)">364</span> + <span style="color:var(--rose)">715</span> + <span style="color:var(--green)">136</span> = <span style="color:var(--dark)">1,215</span>
+            <span style="color:var(--g3);font-size:.5rem;font-weight:500"> TOTAL QUANTUM FEATURES</span>
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- 6 — AUTOENCODER (light)                        -->
+<!-- ═══════════════════════════════════════════════ -->
+<section class="slide" data-s="6" style="background:linear-gradient(150deg,#f8f8ff 0%,#f2f0fa 50%,#f0eef8 100%)">
+  <div class="orb" style="width:350px;height:350px;top:8%;left:-5%;background:#ffc0d0;opacity:.3"></div>
+  <div class="si">
+    <span class="lbl lr a1">06 · AUTOENCODER</span>
+    <h2 class="st a2">DUAL-PURPOSE CORE</h2>
+    <div class="g2 a3" style="margin-top:.6rem">
+      <div class="fc" style="gap:.6rem">
+        <div class="c">
+          <div style="font-family:var(--fd);font-size:.48rem;letter-spacing:.12em;color:var(--blue);font-weight:700;margin-bottom:.35rem">ARCHITECTURE</div>
+          <div class="code"><span class="cc"># Encoder</span>
+224 → <span class="cn">128</span> (ReLU) → <span class="cn">64</span> (ReLU) → <span class="cn">20</span> (<span class="ck">ELU</span>)
+<span class="cc"># Decoder</span>
+ 20 → <span class="cn">64</span>  (ReLU) → <span class="cn">128</span> (ReLU) → <span class="cn">224</span> (<span class="ck">Sigmoid</span>)
+<span class="cc"># ~76,000 parameters</span></div>
+        </div>
+        <div class="c">
+          <div style="font-family:var(--fd);font-size:.48rem;letter-spacing:.12em;color:var(--blue);font-weight:700;margin-bottom:.3rem">LOSS FUNCTIONS</div>
+          <div style="font-family:var(--fm);font-size:.68rem;color:var(--dark)">ℒ<sub>AE</sub> = MSE<sub>recon</sub> + 10⁻⁴ · ‖z‖₁</div>
+          <div style="font-family:var(--fm);font-size:.68rem;color:var(--dark);margin-top:.25rem">ℒ<sub>Head</sub> = MSE(z) + 0.1 · MSE(surface)</div>
+        </div>
+        <div class="c" style="border-left:3px solid var(--rose)">
+          <div style="font-weight:700;font-size:.67rem;margin-bottom:.25rem;color:var(--rose)">🔇 DENOISING = IMPUTATION</div>
+          <div style="font-size:.65rem;color:var(--g3);line-height:1.45">15% masking → AE reconstructs from partial data → <strong style="color:var(--dark)">directly enables Task B</strong>.</div>
+        </div>
+      </div>
+      <!-- IMAGE: AE loss curve / latent space t-SNE -->
+      <div class="fc" style="gap:.6rem">
+        <div class="img-ph" style="flex:1">
+          <div class="ph-icon">📉</div>
+          <div class="ph-label">AE Training Loss Curve</div>
+          <div>Reconstruction loss convergence</div>
+          <div class="ph-file">→ images/ae_loss_curve.png</div>
+        </div>
+        <div class="img-ph" style="flex:1">
+          <div class="ph-icon">🔮</div>
+          <div class="ph-label">Latent Space t-SNE</div>
+          <div>20-dim latent codes projected to 2D</div>
+          <div class="ph-file">→ images/latent_tsne.png</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- 7 — TRAINING + PREDICTION (light)              -->
+<!-- ═══════════════════════════════════════════════ -->
+<section class="slide" data-s="7" style="background:linear-gradient(160deg,#f5f6fc 0%,#eef0fa 60%,#f2f0f8 100%)">
+  <div class="orb" style="width:350px;height:350px;top:-10%;right:-6%;background:#a8c8ff;opacity:.3"></div>
+  <div class="si">
+    <span class="lbl a1">07 · PIPELINE</span>
+    <h2 class="st a2">TRAINING & PREDICTION</h2>
+    <div class="g2 a3" style="margin-top:.5rem">
+      <div class="fc" style="gap:.4rem">
+        <div style="font-family:var(--fd);font-size:.48rem;letter-spacing:.15em;color:var(--blue);font-weight:700">FOUR-PHASE TRAINING</div>
+        <div class="c" style="display:flex;align-items:center;gap:.7rem;padding:.55rem .8rem">
+          <div style="font-family:var(--fd);font-size:.9rem;font-weight:900;color:var(--blue);min-width:22px">01</div>
+          <div style="flex:1"><div style="font-weight:600;font-size:.65rem">Sparse Denoising AE</div><div style="font-size:.52rem;color:var(--g4)">200 epochs, early stopping</div></div>
+          <span class="badge bc" style="font-size:.38rem">~2 MIN</span>
+        </div>
+        <div class="c" style="display:flex;align-items:center;gap:.7rem;padding:.55rem .8rem">
+          <div style="font-family:var(--fd);font-size:.9rem;font-weight:900;color:var(--blue);min-width:22px">02</div>
+          <div style="flex:1"><div style="font-weight:600;font-size:.65rem">Encode → Latent Codes</div><div style="font-size:.52rem;color:var(--g4)">494 × 20-dim, frozen encoder</div></div>
+          <span class="badge bc" style="font-size:.38rem">&lt;1 MIN</span>
+        </div>
+        <div class="c ch" style="display:flex;align-items:center;gap:.7rem;padding:.55rem .8rem">
+          <div style="font-family:var(--fd);font-size:.9rem;font-weight:900;color:var(--rose);min-width:22px">03</div>
+          <div style="flex:1"><div style="font-weight:600;font-size:.65rem">Ensemble QORC <span class="badge br" style="font-size:.32rem;vertical-align:middle">QUANTUM</span></div><div style="font-size:.52rem;color:var(--g4)">3 reservoirs, cached once</div></div>
+          <span class="badge br" style="font-size:.38rem">~10 MIN</span>
+        </div>
+        <div class="c" style="display:flex;align-items:center;gap:.7rem;padding:.55rem .8rem">
+          <div style="font-family:var(--fd);font-size:.9rem;font-weight:900;color:var(--blue);min-width:22px">04</div>
+          <div style="flex:1"><div style="font-weight:600;font-size:.65rem">Classical MLP Head</div><div style="font-size:.52rem;color:var(--g4)">300 epochs, combined loss</div></div>
+          <span class="badge bc" style="font-size:.38rem">~3 MIN</span>
+        </div>
+        <div class="c" style="text-align:center;background:rgba(0,184,120,.06);border-color:rgba(0,184,120,.15);padding:.35rem">
+          <span style="font-family:var(--fd);font-size:.5rem;font-weight:700;color:var(--green);letter-spacing:.08em">TOTAL ≈ 20 MIN ON RTX 4090</span>
+        </div>
+      </div>
+      <div class="fc" style="gap:.4rem">
+        <div style="font-family:var(--fd);font-size:.48rem;letter-spacing:.15em;color:var(--rose);font-weight:700">PREDICTION TASKS</div>
+        <div class="c" style="border-top:3px solid var(--blue)">
+          <div style="display:flex;gap:.3rem;align-items:center;margin-bottom:.3rem"><span class="badge bb" style="font-size:.38rem">TASK A</span><span style="font-weight:700;font-size:.68rem">Future Prediction</span></div>
+          <div style="font-size:.55rem;color:var(--g4);margin-bottom:.25rem">6 rows — all 224 values unknown</div>
+          <ul class="cl">
+            <li><span class="ic ib">1</span>Seed with last 5 known latent codes</li>
+            <li><span class="ic ib">2</span>QORC + MLP → predict z<sub>t+1</sub></li>
+            <li><span class="ic ib">3</span>Decode → 224 prices, shift, repeat</li>
+          </ul>
+        </div>
+        <div class="c" style="border-top:3px solid var(--rose)">
+          <div style="display:flex;gap:.3rem;align-items:center;margin-bottom:.3rem"><span class="badge br" style="font-size:.38rem">TASK B</span><span style="font-weight:700;font-size:.68rem">Missing Imputation</span></div>
+          <div style="font-size:.55rem;color:var(--g4);margin-bottom:.25rem">2 rows — 4–6 NaN values each</div>
+          <ul class="cl">
+            <li><span class="ic ir">1</span>Fill NaN with column medians</li>
+            <li><span class="ic ir">2</span>Encode → decode via denoising AE</li>
+            <li><span class="ic ir">3</span>Keep observed, replace only NaN</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- 8 — PERFORMANCE (light with accent wash)       -->
+<!-- ═══════════════════════════════════════════════ -->
+<section class="slide" data-s="8" style="background:linear-gradient(150deg,#f8f8ff 0%,#f0f2fa 50%,#eee8f5 100%)">
+  <div class="orb" style="width:400px;height:400px;top:-15%;left:-8%;background:#80d8e8;opacity:.3"></div>
+  <div class="si">
+    <span class="lbl a1">08 · PERFORMANCE</span>
+    <h2 class="st a2">MODEL RESULTS</h2>
+    <div class="g2 a3" style="margin-top:.8rem">
+      <div>
+        <div class="g2" style="gap:.7rem;margin-bottom:.7rem">
+          <div class="c" style="text-align:center">
+            <div class="mb" style="color:var(--blue);font-size:1.7rem">0.022</div>
+            <div class="ml">Validation loss</div>
+          </div>
+          <div class="c" style="text-align:center">
+            <div class="mb" style="color:var(--rose);font-size:1.7rem">&lt;2σ</div>
+            <div class="ml">Imputation Z</div>
+          </div>
+          <div class="c" style="text-align:center">
+            <div class="mb" style="color:var(--green);font-size:1.7rem">51/51</div>
+            <div class="ml">Tests passing</div>
+          </div>
+          <div class="c" style="text-align:center">
+            <div class="mb" style="color:var(--amber);font-size:1.7rem">10</div>
+            <div class="ml">Imputed values</div>
+          </div>
+        </div>
+        <div class="g2" style="gap:.7rem">
+          <div class="c">
+            <div style="font-family:var(--fd);font-size:.46rem;letter-spacing:.12em;color:var(--blue);font-weight:700;margin-bottom:.35rem">TRAINING BREAKDOWN</div>
+            <table>
+              <tr><td>Best validation loss</td><td style="color:var(--blue);font-weight:600">0.022191</td></tr>
+              <tr><td>Latent space loss</td><td>0.028847</td></tr>
+              <tr><td>Surface reconstruction</td><td>0.006406</td></tr>
+            </table>
+          </div>
+          <div class="c">
+            <div style="font-family:var(--fd);font-size:.46rem;letter-spacing:.12em;color:var(--rose);font-weight:700;margin-bottom:.35rem">IMPUTATION QUALITY</div>
+            <table>
+              <tr><td>Row 7 — max Z</td><td style="color:var(--green);font-weight:600">1.550 ✓</td></tr>
+              <tr><td>Row 8 — max Z</td><td style="color:var(--green);font-weight:600">1.837 ✓</td></tr>
+              <tr><td>Preservation Δ</td><td style="color:var(--green);font-weight:600">&lt; 1.5e-8 ✓</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+      <!-- IMAGE: Training curves + residual scatter -->
+      <div class="fc" style="gap:.7rem">
+        <div class="img-ph" style="flex:1">
+          <div class="ph-icon">📈</div>
+          <div class="ph-label">Head Training Loss Curve</div>
+          <div>Combined latent + surface loss over epochs</div>
+          <div class="ph-file">→ images/head_loss_curve.png</div>
+        </div>
+        <div class="img-ph" style="flex:1">
+          <div class="ph-icon">🎯</div>
+          <div class="ph-label">Prediction vs. Actual Scatter</div>
+          <div>Validation set reconstruction quality</div>
+          <div class="ph-file">→ images/pred_vs_actual.png</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- 9 — NOVELTY (light with pink wash)             -->
+<!-- ═══════════════════════════════════════════════ -->
+<section class="slide" data-s="9" style="background:linear-gradient(135deg,#f8f6ff 0%,#f4eef8 40%,#faeef2 70%,#eef2ff 100%)">
+  <div class="orb" style="width:400px;height:400px;bottom:-10%;left:-5%;background:#e0b0d8;opacity:.3"></div>
+  <div class="si">
+    <span class="lbl lr a1">09 · NOVELTY</span>
+    <h2 class="st a2">WHAT MAKES THIS UNIQUE</h2>
+    <div class="g2 a3" style="margin-top:.8rem">
+      <div class="c" style="display:flex;gap:.7rem;align-items:flex-start">
+        <div style="min-width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--blue),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0;color:#fff">🧬</div>
+        <div>
+          <div style="font-family:var(--fd);font-weight:700;font-size:.68rem;margin-bottom:.15rem;letter-spacing:.04em">LATENT-SPACE QRC</div>
+          <div style="font-size:.62rem;color:var(--g3);line-height:1.4">QORC on AE latent codes — not raw features or PCA. A novel quantum + deep learning bridge.</div>
+        </div>
+      </div>
+      <div class="c" style="display:flex;gap:.7rem;align-items:flex-start">
+        <div style="min-width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--rose),var(--pink));display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0;color:#fff">⚛</div>
+        <div>
+          <div style="font-family:var(--fd);font-weight:700;font-size:.68rem;margin-bottom:.15rem;letter-spacing:.04em">PHYSICS DIVERSITY</div>
+          <div style="font-size:.62rem;color:var(--g3);line-height:1.4">Different photon numbers → qualitatively different Fock spaces. Richer than different random seeds.</div>
+        </div>
+      </div>
+      <div class="c" style="display:flex;gap:.7rem;align-items:flex-start">
+        <div style="min-width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--blue),var(--rose));display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0;color:#fff">🔇</div>
+        <div>
+          <div style="font-family:var(--fd);font-weight:700;font-size:.68rem;margin-bottom:.15rem;letter-spacing:.04em">DUAL-PURPOSE AE</div>
+          <div style="font-size:.62rem;color:var(--g3);line-height:1.4">Same module = dim reduction + imputation. Trained once, used everywhere.</div>
+        </div>
+      </div>
+      <div class="c" style="display:flex;gap:.7rem;align-items:flex-start">
+        <div style="min-width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,var(--green),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:.85rem;flex-shrink:0;color:#fff">🚫</div>
+        <div>
+          <div style="font-family:var(--fd);font-weight:700;font-size:.68rem;margin-bottom:.15rem;letter-spacing:.04em">ZERO BARREN PLATEAUS</div>
+          <div style="font-size:.62rem;color:var(--g3);line-height:1.4">Fixed quantum + trainable classical — completely avoids VQC's optimization hell.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- 10 — COMPLIANCE (light)                        -->
+<!-- ═══════════════════════════════════════════════ -->
+<section class="slide" data-s="10" style="background:linear-gradient(160deg,#f5f6fc 0%,#eef0fa 60%,#f2f0f8 100%)">
+  <div class="orb" style="width:400px;height:400px;bottom:-12%;right:-5%;background:#a8c8ff;opacity:.3"></div>
+  <div class="si">
+    <span class="lbl a1">10 · ENGINEERING</span>
+    <h2 class="st a2">QUALITY & COMPLIANCE</h2>
+    <div class="g2 a3" style="margin-top:.8rem">
+      <div>
+        <div class="g3" style="gap:.6rem;margin-bottom:.7rem">
+          <div class="c" style="text-align:center">
+            <div style="font-size:1.3rem;margin-bottom:.2rem">🧪</div>
+            <div style="font-family:var(--fd);font-weight:700;font-size:.65rem;margin-bottom:.15rem">51/51 TESTS</div>
+            <div style="font-size:.55rem;color:var(--g4)">Full pipeline coverage</div>
+          </div>
+          <div class="c" style="text-align:center">
+            <div style="font-size:1.3rem;margin-bottom:.2rem">📦</div>
+            <div style="font-family:var(--fd);font-weight:700;font-size:.65rem;margin-bottom:.15rem">7 MODULES</div>
+            <div style="font-size:.55rem;color:var(--g4)">YAML config driven</div>
+          </div>
+          <div class="c" style="text-align:center">
+            <div style="font-size:1.3rem;margin-bottom:.2rem">🔄</div>
+            <div style="font-family:var(--fd);font-weight:700;font-size:.65rem;margin-bottom:.15rem">REPRODUCIBLE</div>
+            <div style="font-size:.55rem;color:var(--g4)">Fixed seeds, 1 cmd</div>
+          </div>
+        </div>
+        <div class="g2" style="gap:.6rem">
+          <div class="c" style="border-left:3px solid var(--green)">
+            <div style="font-family:var(--fd);font-size:.46rem;letter-spacing:.12em;color:var(--green);font-weight:700;margin-bottom:.3rem">✓ HACKATHON COMPLIANCE</div>
+            <ul class="cl">
+              <li><span class="ic ig">✓</span>MerLin framework throughout</li>
+              <li><span class="ic ig">✓</span>All reservoirs ≤20 modes, ≤10 photons</li>
+              <li><span class="ic ig">✓</span>QPU-ready: ≤24 modes, ≤12 photons</li>
+              <li><span class="ic ig">✓</span>Phase encoding only — no amplitude</li>
+            </ul>
+          </div>
+          <div class="c" style="border-left:3px solid var(--blue)">
+            <div style="font-family:var(--fd);font-size:.46rem;letter-spacing:.12em;color:var(--blue);font-weight:700;margin-bottom:.3rem">🛡️ ROBUSTNESS</div>
+            <ul class="cl">
+              <li><span class="ic ib">•</span>Saved winsorize bounds — no leakage</li>
+              <li><span class="ic ib">•</span>Graceful MerLin fallback</li>
+              <li><span class="ic ib">•</span>Gradient clipping, LR scheduler</li>
+              <li><span class="ic ib">•</span>ELU prevents dead neurons</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+      <!-- IMAGE: Test results / code structure -->
+      <div class="img-ph a4" style="min-height:340px">
+        <div class="ph-icon">✅</div>
+        <div class="ph-label">Test Suite Results</div>
+        <div>51/51 passing — pytest output screenshot</div>
+        <div class="ph-file">→ images/test_results.png</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ -->
+<!-- 11 — CONCLUSION (dark dramatic — bookend)      -->
+<!-- ═══════════════════════════════════════════════ -->
+<section class="slide slide-dark" data-s="11" style="background:linear-gradient(140deg,#0c0e28 0%,#1a2266 22%,#4a2070 46%,#a03058 68%,#e06050 86%,#f8c888 100%)">
+  <div class="orb" style="width:500px;height:500px;top:-180px;left:-50px;background:#00dde8;animation:pulse 7s infinite"></div>
+  <div class="orb" style="width:400px;height:400px;bottom:-100px;right:5%;background:#ff4d7a;animation:pulse 9s infinite 3s"></div>
+  <div class="si" style="text-align:center">
+    <span class="lbl a1" style="color:var(--pink-s)">CONCLUSION</span>
+    <h2 class="hero-t a2" style="font-size:clamp(3rem,7vw,5.5rem);background:linear-gradient(135deg,#fff 15%,#ffb6d9 45%,#5b9aff 75%,#00dde8 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:.8rem">QUANTECH</h2>
+    <p class="a3" style="font-size:clamp(.8rem,1.3vw,1rem);font-weight:300;color:rgba(255,255,255,.88);max-width:700px;margin:0 auto 1.1rem;line-height:1.55">
+      Every decision — from the denoising AE to the ensemble QORC — is a <em>logical consequence</em> of the data constraints. Not arbitrary. <strong style="color:#fff">Principled.</strong>
+    </p>
+    <div class="g4 a4" style="max-width:700px;margin:0 auto 1rem">
+      <div style="text-align:center">
+        <div style="font-family:var(--fd);font-size:1.3rem;font-weight:900;color:#5ee8f6">0.022</div>
+        <div class="ml">Val loss</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-family:var(--fd);font-size:1.3rem;font-weight:900;color:#ff7a99">1,215</div>
+        <div class="ml">Quantum feat</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-family:var(--fd);font-size:1.3rem;font-weight:900;color:#5ee5b6">51/51</div>
+        <div class="ml">Tests</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-family:var(--fd);font-size:1.3rem;font-weight:900;color:#fff">~20m</div>
+        <div class="ml">Training</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:.5rem;justify-content:center;flex-wrap:wrap" class="a5">
+      <span class="badge" style="background:rgba(0,221,232,.15);color:#5ee8f6;border:1px solid rgba(0,221,232,.35)">INTERPRETABLE</span>
+      <span class="badge" style="background:rgba(255,77,122,.15);color:#ff7a99;border:1px solid rgba(255,77,122,.35)">NISQ-COMPATIBLE</span>
+      <span class="badge" style="background:rgba(0,184,120,.15);color:#5ee5b6;border:1px solid rgba(0,184,120,.35)">QPU-READY</span>
+      <span class="badge" style="background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2)">MERLIN · PERCEVAL</span>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<!-- ═══ NAVIGATION ═══ -->
+<nav class="nav" id="nav">
+  <button class="nb" id="pb">◀</button>
+  <div id="ds"></div>
+  <span class="nc" id="nc">1 / 12</span>
+  <button class="nb" id="xb">▶</button>
+</nav>
+
+<script>
+(function(){
+  const S=document.querySelectorAll('.slide'),N=S.length;let cur=0;
+  const dc=document.getElementById('ds');
+  for(let i=0;i<N;i++){const d=document.createElement('button');d.className='dot'+(i===0?' on':'');d.onclick=()=>go(i);dc.appendChild(d)}
+  function go(n){if(n<0||n>=N||n===cur)return;S[cur].classList.remove('active');dc.children[cur].classList.remove('on');cur=n;S[cur].classList.add('active');dc.children[cur].classList.add('on');document.getElementById('nc').textContent=(cur+1)+' / '+N}
+  document.getElementById('pb').onclick=()=>go(cur-1);
+  document.getElementById('xb').onclick=()=>go(cur+1);
+  document.addEventListener('keydown',e=>{if(e.key==='ArrowRight'||e.key==='ArrowDown'||e.key===' '){e.preventDefault();go(cur+1)}else if(e.key==='ArrowLeft'||e.key==='ArrowUp'){e.preventDefault();go(cur-1)}else if(e.key==='Home'){e.preventDefault();go(0)}else if(e.key==='End'){e.preventDefault();go(N-1)}});
+  let tx=0,ty=0;
+  document.addEventListener('touchstart',e=>{tx=e.changedTouches[0].screenX;ty=e.changedTouches[0].screenY});
+  document.addEventListener('touchend',e=>{const dx=e.changedTouches[0].screenX-tx,dy=e.changedTouches[0].screenY-ty;if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>50){dx<0?go(cur+1):go(cur-1)}});
+})();
+</script>
+</body>
+</html>
