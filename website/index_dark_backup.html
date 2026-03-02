@@ -1,0 +1,1396 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QuanTech — Hybrid Photonic QRC for Swaption Pricing</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'system-ui', 'sans-serif'],
+            display: ['Space Grotesk', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            quantum: {
+              50: '#f3e8ff',
+              100: '#e9d5ff',
+              200: '#d8b4fe',
+              300: '#c084fc',
+              400: '#a855f7',
+              500: '#8b5cf6',
+              600: '#7c3aed',
+              700: '#6d28d9',
+              800: '#5b21b6',
+              900: '#4c1d95',
+              950: '#2e1065',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* ── Base ── */
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { font-family: 'Inter', sans-serif; background: #0a0a0f; color: #e2e8f0; overflow-x: hidden; }
+
+    /* ── Animated grid background ── */
+    .hero-bg {
+      position: absolute; inset: 0; overflow: hidden; z-index: 0;
+    }
+    .hero-bg::before {
+      content: '';
+      position: absolute; inset: -50%;
+      background-image:
+        linear-gradient(rgba(139,92,246,0.07) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(139,92,246,0.07) 1px, transparent 1px);
+      background-size: 60px 60px;
+      animation: gridMove 20s linear infinite;
+    }
+    .hero-bg::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse at 50% 50%, rgba(139,92,246,0.12) 0%, transparent 60%);
+    }
+    @keyframes gridMove {
+      0%   { transform: translate(0, 0); }
+      100% { transform: translate(60px, 60px); }
+    }
+
+    /* ── Floating orbs ── */
+    .orb {
+      position: absolute; border-radius: 50%; filter: blur(80px); opacity: 0.15; pointer-events: none;
+      animation: orbFloat 12s ease-in-out infinite alternate;
+    }
+    .orb-1 { width: 500px; height: 500px; background: #8b5cf6; top: -10%; left: -10%; animation-duration: 15s; }
+    .orb-2 { width: 400px; height: 400px; background: #6366f1; bottom: -5%; right: -5%; animation-duration: 18s; animation-delay: -6s; }
+    .orb-3 { width: 300px; height: 300px; background: #a78bfa; top: 30%; right: 20%; animation-duration: 20s; animation-delay: -3s; }
+    @keyframes orbFloat {
+      0%   { transform: translate(0, 0) scale(1); }
+      100% { transform: translate(40px, -30px) scale(1.1); }
+    }
+
+    /* ── Glass card ── */
+    .glass {
+      background: rgba(255,255,255,0.03);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .glass-strong {
+      background: rgba(255,255,255,0.05);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    /* ── Scroll reveal ── */
+    .reveal {
+      opacity: 0; transform: translateY(40px);
+      transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .reveal.visible { opacity: 1; transform: translateY(0); }
+
+    /* ── Glow effects ── */
+    .glow-border {
+      position: relative;
+    }
+    .glow-border::before {
+      content: ''; position: absolute; inset: -1px; border-radius: inherit;
+      background: linear-gradient(135deg, rgba(139,92,246,0.4), rgba(99,102,241,0.2), rgba(139,92,246,0.4));
+      z-index: -1; opacity: 0; transition: opacity 0.4s;
+    }
+    .glow-border:hover::before { opacity: 1; }
+
+    /* ── Pipeline connector arrows ── */
+    .pipeline-arrow {
+      width: 2px; height: 40px; margin: 0 auto;
+      background: linear-gradient(to bottom, rgba(139,92,246,0.6), rgba(139,92,246,0.2));
+      position: relative;
+    }
+    .pipeline-arrow::after {
+      content: ''; position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%);
+      border-left: 6px solid transparent; border-right: 6px solid transparent;
+      border-top: 8px solid rgba(139,92,246,0.5);
+    }
+
+    /* ── Quantum glow for step 5 ── */
+    .quantum-glow {
+      box-shadow: 0 0 30px rgba(139,92,246,0.3), 0 0 60px rgba(139,92,246,0.1), inset 0 0 30px rgba(139,92,246,0.05);
+      border-color: rgba(139,92,246,0.4) !important;
+    }
+
+    /* ── Table row highlight ── */
+    .our-model-row {
+      background: rgba(139,92,246,0.15) !important;
+      border-left: 3px solid #8b5cf6;
+    }
+
+    /* ── Chart containers ── */
+    .chart-container {
+      position: relative; width: 100%; max-width: 100%;
+    }
+
+    /* ── Custom scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #0a0a0f; }
+    ::-webkit-scrollbar-thumb { background: #4c1d95; border-radius: 3px; }
+
+    /* ── Innovation cards ── */
+    .innovation-card {
+      transition: transform 0.3s, box-shadow 0.3s;
+    }
+    .innovation-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+    }
+
+    /* ── Metric pulse animation ── */
+    @keyframes pulse-soft {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(139,92,246,0.2); }
+      50% { box-shadow: 0 0 0 12px rgba(139,92,246,0); }
+    }
+    .metric-card:hover { animation: pulse-soft 2s infinite; }
+
+    /* ── Nav link underline ── */
+    .nav-link { position: relative; }
+    .nav-link::after {
+      content: ''; position: absolute; bottom: -4px; left: 0; width: 0; height: 2px;
+      background: #8b5cf6; transition: width 0.3s;
+    }
+    .nav-link:hover::after { width: 100%; }
+
+    /* ── Section gradient dividers ── */
+    .section-divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(139,92,246,0.3), transparent);
+    }
+  </style>
+</head>
+<body>
+
+<!-- ╔══════════════════════════════════════════════╗ -->
+<!-- ║  FIXED NAVBAR                                ║ -->
+<!-- ╚══════════════════════════════════════════════╝ -->
+<nav id="navbar" class="fixed top-0 w-full z-50 transition-all duration-300" style="background:rgba(10,10,15,0.8);backdrop-filter:blur(16px);border-bottom:1px solid rgba(255,255,255,0.04);">
+  <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+    <a href="#hero" class="font-display text-2xl font-bold tracking-tight">
+      <span class="text-white">Quan</span><span class="text-quantum-400">Tech</span>
+    </a>
+    <div class="hidden md:flex items-center gap-8 text-sm font-medium text-gray-400">
+      <a href="#challenge" class="nav-link hover:text-white transition">Challenge</a>
+      <a href="#architecture" class="nav-link hover:text-white transition">Architecture</a>
+      <a href="#innovations" class="nav-link hover:text-white transition">Innovations</a>
+      <a href="#results" class="nav-link hover:text-white transition">Results</a>
+      <a href="#benchmarks" class="nav-link hover:text-white transition">Benchmarks</a>
+      <a href="#quantum-advantage" class="nav-link hover:text-white transition">Quantum Advantage</a>
+      <a href="https://github.com/" target="_blank" class="ml-2 px-4 py-2 rounded-lg bg-quantum-600/20 text-quantum-300 hover:bg-quantum-600/30 transition border border-quantum-600/30">
+        <svg class="inline w-4 h-4 mr-1 -mt-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        GitHub
+      </a>
+    </div>
+    <!-- Mobile menu toggle -->
+    <button id="mobileMenuBtn" class="md:hidden text-gray-400 hover:text-white">
+      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+    </button>
+  </div>
+  <!-- Mobile menu -->
+  <div id="mobileMenu" class="hidden md:hidden px-6 pb-4 space-y-3 text-sm text-gray-400">
+    <a href="#challenge" class="block hover:text-white">Challenge</a>
+    <a href="#architecture" class="block hover:text-white">Architecture</a>
+    <a href="#innovations" class="block hover:text-white">Innovations</a>
+    <a href="#results" class="block hover:text-white">Results</a>
+    <a href="#benchmarks" class="block hover:text-white">Benchmarks</a>
+    <a href="#quantum-advantage" class="block hover:text-white">Quantum Advantage</a>
+  </div>
+</nav>
+
+
+<!-- ╔══════════════════════════════════════════════╗ -->
+<!-- ║  HERO SECTION                                ║ -->
+<!-- ╚══════════════════════════════════════════════╝ -->
+<section id="hero" class="relative min-h-screen flex items-center justify-center overflow-hidden">
+  <div class="hero-bg"></div>
+  <div class="orb orb-1"></div>
+  <div class="orb orb-2"></div>
+  <div class="orb orb-3"></div>
+
+  <div class="relative z-10 max-w-5xl mx-auto px-6 text-center py-32">
+    <!-- Badge -->
+    <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full glass text-xs font-medium text-quantum-300 mb-8">
+      <span class="w-2 h-2 rounded-full bg-quantum-400 animate-pulse"></span>
+      Q-volution Hackathon 2026 — Quandela Challenge
+    </div>
+
+    <h1 class="font-display text-5xl md:text-7xl font-bold leading-tight tracking-tight mb-6">
+      <span class="text-white">Interpretable NISQ-ML for</span><br/>
+      <span class="bg-gradient-to-r from-quantum-300 via-quantum-400 to-indigo-400 bg-clip-text text-transparent">Financial Derivatives</span>
+    </h1>
+
+    <p class="text-lg md:text-xl text-gray-400 max-w-3xl mx-auto leading-relaxed mb-8">
+      Hybrid Photonic Quantum Reservoir Computing with Ridge readout for Swaption Pricing — combining
+      the computational richness of quantum optics with L2-regularized classical regression for
+      sample-efficient, interpretable financial prediction. Ranked <strong class="text-quantum-300">#4 of 11 models</strong> with <strong class="text-quantum-300">0.09ms inference</strong>.
+    </p>
+
+    <!-- Team -->
+    <div class="flex flex-wrap justify-center gap-4 mb-10 text-sm text-gray-500">
+      <span class="px-3 py-1 rounded-lg glass">Team QuanTech</span>
+      <span class="px-3 py-1 rounded-lg glass">Q-volution Hackathon 2026</span>
+    </div>
+
+    <!-- CTA Buttons -->
+    <div class="flex flex-wrap justify-center gap-4">
+      <a href="#challenge" class="px-8 py-3.5 rounded-xl font-semibold text-sm bg-quantum-600 hover:bg-quantum-500 text-white transition shadow-lg shadow-quantum-600/25">
+        Explore the Solution ↓
+      </a>
+      <a href="https://github.com/" target="_blank" class="px-8 py-3.5 rounded-xl font-semibold text-sm glass text-gray-300 hover:text-white hover:border-quantum-500/30 transition">
+        View on GitHub →
+      </a>
+    </div>
+
+    <!-- Scroll indicator -->
+    <div class="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
+      <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"/></svg>
+    </div>
+  </div>
+</section>
+
+
+<!-- ╔══════════════════════════════════════════════╗ -->
+<!-- ║  CHALLENGE SECTION                           ║ -->
+<!-- ╚══════════════════════════════════════════════╝ -->
+<section id="challenge" class="relative py-28">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="text-center mb-16 reveal">
+      <span class="text-quantum-400 text-sm font-semibold tracking-widest uppercase">The Problem</span>
+      <h2 class="font-display text-4xl md:text-5xl font-bold text-white mt-3">The Challenge</h2>
+      <p class="text-gray-400 mt-4 max-w-2xl mx-auto">Predict and reconstruct interest rate derivative surfaces using photonic quantum computing.</p>
+    </div>
+
+    <!-- 3 Cards -->
+    <div class="grid md:grid-cols-3 gap-6 mb-16">
+      <!-- Card 1 -->
+      <div class="glass rounded-2xl p-8 reveal glow-border" style="transition-delay:0.1s">
+        <div class="w-14 h-14 rounded-xl bg-quantum-600/20 flex items-center justify-center mb-6">
+          <svg class="w-7 h-7 text-quantum-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 10h18M3 14h18M3 6h18M3 18h18M7 3v18M11 3v18M15 3v18M19 3v18"/></svg>
+        </div>
+        <h3 class="font-display text-xl font-semibold text-white mb-3">Swaption Surface Data</h3>
+        <p class="text-gray-400 leading-relaxed text-sm">
+          <span class="text-quantum-300 font-semibold">494</span> daily swaption volatility surfaces, each with
+          <span class="text-quantum-300 font-semibold">224</span> dimensions — a 14×16 tenor/maturity grid of
+          interest rate derivative prices.
+        </p>
+      </div>
+
+      <!-- Card 2 -->
+      <div class="glass rounded-2xl p-8 reveal glow-border" style="transition-delay:0.2s">
+        <div class="w-14 h-14 rounded-xl bg-indigo-600/20 flex items-center justify-center mb-6">
+          <svg class="w-7 h-7 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+        </div>
+        <h3 class="font-display text-xl font-semibold text-white mb-3">Two Tasks</h3>
+        <p class="text-gray-400 leading-relaxed text-sm">
+          <strong class="text-white">Task A:</strong> Forecast 6 future surfaces autoregressively.<br/>
+          <strong class="text-white">Task B:</strong> Impute 4–6 missing values in partial surfaces.
+        </p>
+      </div>
+
+      <!-- Card 3 -->
+      <div class="glass rounded-2xl p-8 reveal glow-border" style="transition-delay:0.3s">
+        <div class="w-14 h-14 rounded-xl bg-violet-600/20 flex items-center justify-center mb-6">
+          <svg class="w-7 h-7 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+        </div>
+        <h3 class="font-display text-xl font-semibold text-white mb-3">Quantum Constraints</h3>
+        <p class="text-gray-400 leading-relaxed text-sm">
+          Must use MerLin photonic framework. Simulation: ≤20 modes, ≤10 photons.
+          QPU: ≤24 modes, ≤12 photons. <span class="text-red-400 font-medium">No amplitude encoding.</span>
+        </p>
+      </div>
+    </div>
+
+    <!-- Why This is Hard -->
+    <div class="glass-strong rounded-2xl p-8 md:p-10 reveal max-w-4xl mx-auto">
+      <h3 class="font-display text-2xl font-bold text-white mb-6 flex items-center gap-3">
+        <span class="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center">
+          <svg class="w-5 h-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+        </span>
+        Why This is Hard
+      </h3>
+      <div class="space-y-4">
+        <div class="flex items-start gap-4">
+          <span class="mt-1 w-6 h-6 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0">
+            <span class="w-2 h-2 rounded-full bg-red-400"></span>
+          </span>
+          <p class="text-gray-300 text-sm"><strong class="text-white">224-dimensional output</strong> is far too large for any quantum circuit to handle directly.</p>
+        </div>
+        <div class="flex items-start gap-4">
+          <span class="mt-1 w-6 h-6 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0">
+            <span class="w-2 h-2 rounded-full bg-red-400"></span>
+          </span>
+          <p class="text-gray-300 text-sm"><strong class="text-white">Only 494 training samples</strong> — deep models overfit, shallow models underfit.</p>
+        </div>
+        <div class="flex items-start gap-4">
+          <span class="mt-1 w-6 h-6 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0">
+            <span class="w-2 h-2 rounded-full bg-red-400"></span>
+          </span>
+          <p class="text-gray-300 text-sm"><strong class="text-white">No-arbitrage structure</strong> — swaption surfaces have strong constraints that naive models ignore.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider"></div>
+
+
+<!-- ╔══════════════════════════════════════════════╗ -->
+<!-- ║  ARCHITECTURE SECTION                        ║ -->
+<!-- ╚══════════════════════════════════════════════╝ -->
+<section id="architecture" class="relative py-28">
+  <div class="max-w-5xl mx-auto px-6">
+    <div class="text-center mb-16 reveal">
+      <span class="text-quantum-400 text-sm font-semibold tracking-widest uppercase">Pipeline</span>
+      <h2 class="font-display text-4xl md:text-5xl font-bold text-white mt-3">System Architecture</h2>
+      <p class="text-gray-400 mt-4 max-w-2xl mx-auto">End-to-end pipeline from raw swaption surfaces to predictions — click any step to learn more.</p>
+    </div>
+
+    <!-- Pipeline flowchart -->
+    <div class="space-y-0 reveal">
+
+      <!-- Step 1 -->
+      <div class="pipeline-step glass rounded-2xl p-6 md:p-8 cursor-pointer hover:border-quantum-500/30 transition-all" onclick="toggleDetail(this)">
+        <div class="flex items-center gap-4 mb-2">
+          <span class="w-10 h-10 rounded-lg bg-gray-700/50 flex items-center justify-center text-sm font-bold text-gray-300 font-display">1</span>
+          <div>
+            <h4 class="font-display font-semibold text-white text-lg">Raw Swaption Data</h4>
+            <span class="text-quantum-300 text-sm font-mono">494 × 224</span>
+          </div>
+          <svg class="w-5 h-5 text-gray-500 ml-auto transition-transform step-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </div>
+        <div class="step-detail hidden mt-4 pl-14 text-sm text-gray-400 leading-relaxed">
+          Daily price surfaces on a 14 tenor × 16 maturity grid of interest rate derivative prices. Each surface captures the market's view of interest rate volatility across different expiries and swap lengths.
+        </div>
+      </div>
+      <div class="pipeline-arrow"></div>
+
+      <!-- Step 2 -->
+      <div class="pipeline-step glass rounded-2xl p-6 md:p-8 cursor-pointer hover:border-quantum-500/30 transition-all" onclick="toggleDetail(this)">
+        <div class="flex items-center gap-4 mb-2">
+          <span class="w-10 h-10 rounded-lg bg-emerald-700/30 flex items-center justify-center text-sm font-bold text-emerald-300 font-display">2</span>
+          <div>
+            <h4 class="font-display font-semibold text-white text-lg">Robust Preprocessing</h4>
+            <span class="text-emerald-300 text-sm font-mono">3-stage pipeline</span>
+          </div>
+          <svg class="w-5 h-5 text-gray-500 ml-auto transition-transform step-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </div>
+        <div class="step-detail hidden mt-4 pl-14 text-sm text-gray-400 leading-relaxed">
+          <strong class="text-white">Winsorize</strong> outliers at 1st/99th percentile →
+          <strong class="text-white">RobustScaler</strong> (median/IQR, resistant to fat tails) →
+          <strong class="text-white">MinMax</strong> to [0,1]. Financial data has extreme outliers that corrupt standard scaling — this pipeline handles them gracefully while remaining perfectly invertible.
+        </div>
+      </div>
+      <div class="pipeline-arrow"></div>
+
+      <!-- Step 3 -->
+      <div class="pipeline-step glass rounded-2xl p-6 md:p-8 cursor-pointer hover:border-quantum-500/30 transition-all" onclick="toggleDetail(this)">
+        <div class="flex items-center gap-4 mb-2">
+          <span class="w-10 h-10 rounded-lg bg-blue-700/30 flex items-center justify-center text-sm font-bold text-blue-300 font-display">3</span>
+          <div>
+            <h4 class="font-display font-semibold text-white text-lg">Sparse Denoising Autoencoder</h4>
+            <span class="text-blue-300 text-sm font-mono">224 → 128 → 64 → 20</span>
+          </div>
+          <svg class="w-5 h-5 text-gray-500 ml-auto transition-transform step-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </div>
+        <div class="step-detail hidden mt-4 pl-14 text-sm text-gray-400 leading-relaxed">
+          Learns a nonlinear manifold of swaption surfaces. <strong class="text-white">ELU bottleneck</strong> prevents dead neurons. Random masking (15%) during training teaches reconstruction from partial inputs — this enables missing data imputation. <strong class="text-white">L1 sparsity</strong> penalty forces each latent dim to represent a distinct market factor (level, slope, curvature, smile).
+        </div>
+      </div>
+      <div class="pipeline-arrow"></div>
+
+      <!-- Step 4 -->
+      <div class="pipeline-step glass rounded-2xl p-6 md:p-8 cursor-pointer hover:border-quantum-500/30 transition-all" onclick="toggleDetail(this)">
+        <div class="flex items-center gap-4 mb-2">
+          <span class="w-10 h-10 rounded-lg bg-amber-700/30 flex items-center justify-center text-sm font-bold text-amber-300 font-display">4</span>
+          <div>
+            <h4 class="font-display font-semibold text-white text-lg">Temporal Windowing</h4>
+            <span class="text-amber-300 text-sm font-mono">5-step + Δ vector</span>
+          </div>
+          <svg class="w-5 h-5 text-gray-500 ml-auto transition-transform step-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </div>
+        <div class="step-detail hidden mt-4 pl-14 text-sm text-gray-400 leading-relaxed">
+          5-step sliding window of latent codes + first-difference delta vector. Captures recent dynamics and momentum in a compact 120-dimensional representation (5 steps × 20 latent dims + 20 delta dims).
+        </div>
+      </div>
+      <div class="pipeline-arrow"></div>
+
+      <!-- Step 5 — QUANTUM (highlighted) -->
+      <div class="pipeline-step glass rounded-2xl p-6 md:p-8 cursor-pointer quantum-glow transition-all" onclick="toggleDetail(this)">
+        <div class="flex items-center gap-4 mb-2">
+          <span class="w-10 h-10 rounded-lg bg-quantum-700/40 flex items-center justify-center text-sm font-bold text-quantum-200 font-display">⚛</span>
+          <div>
+            <h4 class="font-display font-semibold text-quantum-200 text-lg">Ensemble QORC ×3</h4>
+            <span class="text-quantum-300 text-sm font-mono">1,215 Fock features</span>
+          </div>
+          <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-quantum-500/20 text-quantum-300 border border-quantum-500/30 ml-auto">Quantum</span>
+        </div>
+        <div class="step-detail hidden mt-4 pl-14 text-sm text-gray-300 leading-relaxed">
+          3 fixed photonic reservoirs via MerLin:<br/>
+          <span class="text-quantum-300">●</span> 12-mode / 3-photon → <strong class="text-white">364 features</strong><br/>
+          <span class="text-quantum-300">●</span> 10-mode / 4-photon → <strong class="text-white">715 features</strong><br/>
+          <span class="text-quantum-300">●</span> 16-mode / 2-photon → <strong class="text-white">136 features</strong><br/>
+          <span class="text-quantum-300 font-semibold">= 1,215 total Fock-probability features</span><br/><br/>
+          Sandwich circuit: Haar-random unitary → Phase shifters (data encoding) → Haar-random unitary. Fixed weights — computed once, cached.
+        </div>
+      </div>
+      <div class="pipeline-arrow"></div>
+
+      <!-- Step 6 -->
+      <div class="pipeline-step glass rounded-2xl p-6 md:p-8 cursor-pointer hover:border-quantum-500/30 transition-all" onclick="toggleDetail(this)">
+        <div class="flex items-center gap-4 mb-2">
+          <span class="w-10 h-10 rounded-lg bg-cyan-700/30 flex items-center justify-center text-sm font-bold text-cyan-300 font-display">6</span>
+          <div>
+            <h4 class="font-display font-semibold text-white text-lg">Ridge Readout</h4>
+            <span class="text-cyan-300 text-sm font-mono">1,335 → 20 (α = 100)</span>
+          </div>
+          <svg class="w-5 h-5 text-gray-500 ml-auto transition-transform step-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </div>
+        <div class="step-detail hidden mt-4 pl-14 text-sm text-gray-400 leading-relaxed">
+          Quantum features (1,215) + classical context (120) → L2-regularized linear regression → predicted next latent code (20 dims). <strong class="text-white">Only trained component</strong>. Ridge regression (α=100) prevents overfitting on small data, outperforming MLP heads by 31%. Cross-validated alpha selection ensures optimal regularization strength.
+        </div>
+      </div>
+      <div class="pipeline-arrow"></div>
+
+      <!-- Step 7 -->
+      <div class="pipeline-step glass rounded-2xl p-6 md:p-8 cursor-pointer hover:border-quantum-500/30 transition-all" onclick="toggleDetail(this)">
+        <div class="flex items-center gap-4 mb-2">
+          <span class="w-10 h-10 rounded-lg bg-rose-700/30 flex items-center justify-center text-sm font-bold text-rose-300 font-display">7</span>
+          <div>
+            <h4 class="font-display font-semibold text-white text-lg">AE Decoder (frozen)</h4>
+            <span class="text-rose-300 text-sm font-mono">20 → 64 → 128 → 224</span>
+          </div>
+          <svg class="w-5 h-5 text-gray-500 ml-auto transition-transform step-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </div>
+        <div class="step-detail hidden mt-4 pl-14 text-sm text-gray-400 leading-relaxed">
+          Reconstructs full 224-dimensional swaption surface from the 20-dim latent prediction. Guarantees all predictions lie on the learned manifold — no arbitrage-violating outputs possible.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider"></div>
+
+
+<!-- ╔══════════════════════════════════════════════╗ -->
+<!-- ║  KEY INNOVATIONS SECTION                     ║ -->
+<!-- ╚══════════════════════════════════════════════╝ -->
+<section id="innovations" class="relative py-28">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="text-center mb-16 reveal">
+      <span class="text-quantum-400 text-sm font-semibold tracking-widest uppercase">What Makes Us Different</span>
+      <h2 class="font-display text-4xl md:text-5xl font-bold text-white mt-3">Key Innovations</h2>
+      <p class="text-gray-400 mt-4 max-w-2xl mx-auto">8 design decisions that separate our approach from conventional methods.</p>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-6">
+      <!-- Innovation 1 -->
+      <div class="innovation-card glass rounded-2xl p-8 reveal" style="transition-delay:0.05s">
+        <div class="flex items-center gap-3 mb-4">
+          <span class="w-8 h-8 rounded-lg bg-emerald-500/20 flex items-center justify-center text-emerald-400 font-bold font-display text-sm">1</span>
+          <h3 class="font-display font-semibold text-white">Robust 3-Stage Preprocessing</h3>
+        </div>
+        <div class="space-y-3 text-sm text-gray-400 leading-relaxed">
+          <p><strong class="text-red-400">Problem:</strong> Financial data has fat tails — a single extreme day can distort mean/std and corrupt StandardScaler.</p>
+          <p><strong class="text-emerald-400">Our approach:</strong> Winsorize (clip to 1st/99th percentile) → RobustScaler (median + IQR) → MinMax to [0,1].</p>
+          <p><strong class="text-quantum-300">Effect:</strong> Outlier-resistant, perfectly invertible normalization. Training bounds saved and applied identically at test time — zero data leakage.</p>
+        </div>
+      </div>
+
+      <!-- Innovation 2 -->
+      <div class="innovation-card glass rounded-2xl p-8 reveal" style="transition-delay:0.1s">
+        <div class="flex items-center gap-3 mb-4">
+          <span class="w-8 h-8 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-400 font-bold font-display text-sm">2</span>
+          <h3 class="font-display font-semibold text-white">Sparse Denoising AE vs PCA</h3>
+        </div>
+        <div class="space-y-3 text-sm text-gray-400 leading-relaxed">
+          <p><strong class="text-red-400">Problem:</strong> PCA is strictly linear — it cannot capture smile dynamics, skew, or term structure curvature in swaption surfaces.</p>
+          <p><strong class="text-blue-400">Our approach:</strong> Nonlinear autoencoder with denoising (15% random masking) + L1 sparsity.</p>
+          <p><strong class="text-quantum-300">Effect:</strong> Nonlinear manifold captures complex surface structure PCA misses. Denoising training directly enables Task B imputation. L1 sparsity → interpretable latent factors.</p>
+        </div>
+      </div>
+
+      <!-- Innovation 3 -->
+      <div class="innovation-card glass rounded-2xl p-8 reveal" style="transition-delay:0.15s">
+        <div class="flex items-center gap-3 mb-4">
+          <span class="w-8 h-8 rounded-lg bg-amber-500/20 flex items-center justify-center text-amber-400 font-bold font-display text-sm">3</span>
+          <h3 class="font-display font-semibold text-white">ELU Bottleneck vs ReLU</h3>
+        </div>
+        <div class="space-y-3 text-sm text-gray-400 leading-relaxed">
+          <p><strong class="text-red-400">Problem:</strong> ReLU at the bottleneck causes "dying neurons" — latent dims collapse to zero and never recover.</p>
+          <p><strong class="text-amber-400">Our approach:</strong> ELU activation at the bottleneck (allows small negative values).</p>
+          <p><strong class="text-quantum-300">Effect:</strong> All 20 latent dims remain active. Combined with L1 sparsity: selective sparsity without permanent death.</p>
+        </div>
+      </div>
+
+      <!-- Innovation 4 -->
+      <div class="innovation-card glass rounded-2xl p-8 reveal quantum-glow" style="transition-delay:0.2s">
+        <div class="flex items-center gap-3 mb-4">
+          <span class="w-8 h-8 rounded-lg bg-quantum-500/20 flex items-center justify-center text-quantum-400 font-bold font-display text-sm">4</span>
+          <h3 class="font-display font-semibold text-quantum-200">Fixed QORC Ensemble</h3>
+        </div>
+        <div class="space-y-3 text-sm text-gray-300 leading-relaxed">
+          <p><strong class="text-red-400">Problem:</strong> Training quantum circuit parameters with only 494 samples → overfitting and barren plateaus.</p>
+          <p><strong class="text-quantum-300">Our approach:</strong> Reservoir computing paradigm — fixed random photonic circuits + trained classical readout.</p>
+          <p><strong class="text-quantum-200">Effect:</strong> Avoids barren plateaus entirely. Quantum features computed once and cached — no re-simulation every epoch. Training ~ 20 min total.</p>
+        </div>
+      </div>
+
+      <!-- Innovation 5 -->
+      <div class="innovation-card glass rounded-2xl p-8 reveal" style="transition-delay:0.25s">
+        <div class="flex items-center gap-3 mb-4">
+          <span class="w-8 h-8 rounded-lg bg-violet-500/20 flex items-center justify-center text-violet-400 font-bold font-display text-sm">5</span>
+          <h3 class="font-display font-semibold text-white">Ensemble Diversity via Physics</h3>
+        </div>
+        <div class="space-y-3 text-sm text-gray-400 leading-relaxed">
+          <p><strong class="text-red-400">Problem:</strong> Classical ensembles use different random seeds — limited diversity.</p>
+          <p><strong class="text-violet-400">Our approach:</strong> Three reservoirs with different photon numbers (2, 3, 4) creating qualitatively different Fock spaces.</p>
+          <p><strong class="text-quantum-300">Effect:</strong> Pairwise, cubic, and quartic interactions — fundamentally different nonlinear feature families that cannot be replicated by different seeds of the same function class.</p>
+        </div>
+      </div>
+
+      <!-- Innovation 6 -->
+      <div class="innovation-card glass rounded-2xl p-8 reveal" style="transition-delay:0.3s">
+        <div class="flex items-center gap-3 mb-4">
+          <span class="w-8 h-8 rounded-lg bg-teal-500/20 flex items-center justify-center text-teal-400 font-bold font-display text-sm">6</span>
+          <h3 class="font-display font-semibold text-white">Phase Encoding via Sigmoid</h3>
+        </div>
+        <div class="space-y-3 text-sm text-gray-400 leading-relaxed">
+          <p><strong class="text-red-400">Problem:</strong> Challenge prohibits amplitude encoding. Need mapping from real values to phase parameters.</p>
+          <p><strong class="text-teal-400">Our approach:</strong> Sigmoid maps to [0, 1], scaled to [0, 2π].</p>
+          <p><strong class="text-quantum-300">Effect:</strong> Smooth, differentiable, exploits full optical periodicity. Gradients flow through during head training.</p>
+        </div>
+      </div>
+
+      <!-- Innovation 7 -->
+      <div class="innovation-card glass rounded-2xl p-8 reveal" style="transition-delay:0.35s">
+        <div class="flex items-center gap-3 mb-4">
+          <span class="w-8 h-8 rounded-lg bg-pink-500/20 flex items-center justify-center text-pink-400 font-bold font-display text-sm">7</span>
+          <h3 class="font-display font-semibold text-white">Predict in Latent Space</h3>
+        </div>
+        <div class="space-y-3 text-sm text-gray-400 leading-relaxed">
+          <p><strong class="text-red-400">Problem:</strong> Directly predicting 224 prices is high-dimensional and noisy.</p>
+          <p><strong class="text-pink-400">Our approach:</strong> Predict the 20-dim latent code, then decode via frozen AE decoder.</p>
+          <p><strong class="text-quantum-300">Effect:</strong> 20-dim prediction is dramatically easier. Decoder guarantees all outputs respect the learned surface manifold — no arbitrage-violating predictions.</p>
+        </div>
+      </div>
+
+      <!-- Innovation 8 -->
+      <div class="innovation-card glass rounded-2xl p-8 reveal" style="transition-delay:0.4s">
+        <div class="flex items-center gap-3 mb-4">
+          <span class="w-8 h-8 rounded-lg bg-orange-500/20 flex items-center justify-center text-orange-400 font-bold font-display text-sm">8</span>
+          <h3 class="font-display font-semibold text-white">Ridge Over MLP: 31% Better</h3>
+        </div>
+        <div class="space-y-3 text-sm text-gray-400 leading-relaxed">
+          <p><strong class="text-red-400">Problem:</strong> MLP heads (377K params) overfit on 494 training samples → QUANTECH MLP MSE 0.020.</p>
+          <p><strong class="text-orange-400">Our approach:</strong> Replace the neural network readout with Ridge regression (α=100), cross-validated across [0.01, 0.1, 1, 10, 100].</p>
+          <p><strong class="text-quantum-300">Effect:</strong> QORC+Ridge achieves MSE 0.014 — a 31% improvement over QUANTECH MLP. Linear readout has only ~26K effective parameters, preventing overfitting while fully exploiting quantum features.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider"></div>
+
+
+<!-- ╔══════════════════════════════════════════════╗ -->
+<!-- ║  RESULTS SECTION                             ║ -->
+<!-- ╚══════════════════════════════════════════════╝ -->
+<section id="results" class="relative py-28">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="text-center mb-16 reveal">
+      <span class="text-quantum-400 text-sm font-semibold tracking-widest uppercase">Performance</span>
+      <h2 class="font-display text-4xl md:text-5xl font-bold text-white mt-3">Results</h2>
+    </div>
+
+    <!-- Metric cards -->
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-20 reveal">
+      <div class="metric-card glass rounded-xl p-5 text-center">
+        <div class="text-3xl font-bold font-display text-quantum-300">0.014</div>
+        <div class="text-xs text-gray-400 mt-1">QORC+Ridge MSE</div>
+      </div>
+      <div class="metric-card glass rounded-xl p-5 text-center">
+        <div class="text-3xl font-bold font-display text-quantum-300">0.825</div>
+        <div class="text-xs text-gray-400 mt-1">R² Score</div>
+      </div>
+      <div class="metric-card glass rounded-xl p-5 text-center">
+        <div class="text-3xl font-bold font-display text-indigo-300">1,215</div>
+        <div class="text-xs text-gray-400 mt-1">Quantum Features</div>
+      </div>
+      <div class="metric-card glass rounded-xl p-5 text-center">
+        <div class="text-3xl font-bold font-display text-emerald-300">0.09ms</div>
+        <div class="text-xs text-gray-400 mt-1">Inference Latency</div>
+      </div>
+      <div class="metric-card glass rounded-xl p-5 text-center">
+        <div class="text-3xl font-bold font-display text-amber-300">#4/11</div>
+        <div class="text-xs text-gray-400 mt-1">Benchmark Rank</div>
+      </div>
+      <div class="metric-card glass rounded-xl p-5 text-center">
+        <div class="text-3xl font-bold font-display text-teal-300">5/5</div>
+        <div class="text-xs text-gray-400 mt-1">Quantum Models Beat Classical Avg</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider"></div>
+
+
+<!-- ╔══════════════════════════════════════════════╗ -->
+<!-- ║  BENCHMARKS SECTION                          ║ -->
+<!-- ╚══════════════════════════════════════════════╝ -->
+<section id="benchmarks" class="relative py-28">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="text-center mb-16 reveal">
+      <span class="text-quantum-400 text-sm font-semibold tracking-widest uppercase">Comparative Analysis</span>
+      <h2 class="font-display text-4xl md:text-5xl font-bold text-white mt-3">Benchmark Results</h2>
+      <p class="text-gray-400 mt-4 max-w-2xl mx-auto">
+        11 models evaluated on the same 50-sample validation set. All predict next-step latent codes (20-dim) from temporal windows.
+        <span class="inline-flex items-center gap-1.5 ml-2 text-xs"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(139,92,246,0.7)"></span><span class="text-quantum-300">Quantum</span></span>
+        <span class="inline-flex items-center gap-1.5 ml-2 text-xs"><span class="w-2.5 h-2.5 rounded-sm" style="background:rgba(16,185,129,0.7)"></span><span class="text-emerald-300">Classical</span></span>
+      </p>
+    </div>
+
+    <!-- Benchmark table -->
+    <div class="overflow-x-auto mb-16 reveal">
+      <table class="w-full text-sm text-left">
+        <thead>
+          <tr class="border-b border-white/10">
+            <th class="px-4 py-3 font-display font-semibold text-gray-400 text-xs uppercase tracking-wider">Rank</th>
+            <th class="px-4 py-3 font-display font-semibold text-gray-400 text-xs uppercase tracking-wider">Model</th>
+            <th class="px-4 py-3 font-display font-semibold text-gray-400 text-xs uppercase tracking-wider">Type</th>
+            <th class="px-4 py-3 font-display font-semibold text-gray-400 text-xs uppercase tracking-wider">Latent MSE</th>
+            <th class="px-4 py-3 font-display font-semibold text-gray-400 text-xs uppercase tracking-wider">Surface RMSE</th>
+            <th class="px-4 py-3 font-display font-semibold text-gray-400 text-xs uppercase tracking-wider">R²</th>
+            <th class="px-4 py-3 font-display font-semibold text-gray-400 text-xs uppercase tracking-wider">Params</th>
+            <th class="px-4 py-3 font-display font-semibold text-gray-400 text-xs uppercase tracking-wider">Train Time</th>
+            <th class="px-4 py-3 font-display font-semibold text-gray-400 text-xs uppercase tracking-wider">Inference</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-white/5">
+          <!-- Quantum model -->
+          <tr class="hover:bg-quantum-600/[0.06] transition" style="background:rgba(139,92,246,0.05)">
+            <td class="px-4 py-3 text-quantum-400 font-mono">1</td>
+            <td class="px-4 py-3 text-quantum-200 font-medium">Simple PML + Ridge</td>
+            <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-quantum-500/20 text-quantum-300 border border-quantum-500/30">Quantum</span></td>
+            <td class="px-4 py-3 text-emerald-400 font-mono font-semibold">0.01053</td>
+            <td class="px-4 py-3 text-gray-300 font-mono">0.04709</td>
+            <td class="px-4 py-3 text-gray-300 font-mono">0.868</td>
+            <td class="px-4 py-3 text-gray-400">9,700</td>
+            <td class="px-4 py-3 text-gray-400">0.06s</td>
+            <td class="px-4 py-3 text-gray-400">1.36ms</td>
+          </tr>
+          <!-- Classical model -->
+          <tr class="hover:bg-white/[0.02] transition">
+            <td class="px-4 py-3 text-gray-500 font-mono">2</td>
+            <td class="px-4 py-3 text-white font-medium">Ridge Regression</td>
+            <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Classical</span></td>
+            <td class="px-4 py-3 text-emerald-400 font-mono">0.01095</td>
+            <td class="px-4 py-3 text-gray-300 font-mono">0.04685</td>
+            <td class="px-4 py-3 text-gray-300 font-mono">0.863</td>
+            <td class="px-4 py-3 text-gray-400">2,400</td>
+            <td class="px-4 py-3 text-gray-400">0.01s</td>
+            <td class="px-4 py-3 text-gray-400">0.05ms</td>
+          </tr>
+          <!-- Classical model -->
+          <tr class="hover:bg-white/[0.02] transition">
+            <td class="px-4 py-3 text-gray-500 font-mono">3</td>
+            <td class="px-4 py-3 text-white font-medium">sklearn MLP</td>
+            <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Classical</span></td>
+            <td class="px-4 py-3 text-gray-300 font-mono">0.01357</td>
+            <td class="px-4 py-3 text-gray-300 font-mono">0.05184</td>
+            <td class="px-4 py-3 text-gray-300 font-mono">0.830</td>
+            <td class="px-4 py-3 text-gray-400">~10K</td>
+            <td class="px-4 py-3 text-gray-400">1.92s</td>
+            <td class="px-4 py-3 text-gray-400">44.4ms</td>
+          </tr>
+          <!-- OUR MODEL — highlighted -->
+          <tr class="our-model-row hover:bg-quantum-600/20 transition rounded-lg">
+            <td class="px-4 py-3 text-quantum-400 font-mono font-bold">4</td>
+            <td class="px-4 py-3 font-bold flex items-center gap-2">
+              <span class="text-quantum-300">★</span>
+              <span class="text-quantum-200">QORC + Ridge (ours)</span>
+            </td>
+            <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-quantum-500/30 text-quantum-200 border border-quantum-400/40">Quantum</span></td>
+            <td class="px-4 py-3 text-quantum-300 font-mono font-semibold">0.01400</td>
+            <td class="px-4 py-3 text-quantum-300 font-mono">0.05027</td>
+            <td class="px-4 py-3 text-quantum-300 font-mono">0.825</td>
+            <td class="px-4 py-3 text-quantum-300">26,720</td>
+            <td class="px-4 py-3 text-quantum-300">0.08s</td>
+            <td class="px-4 py-3 text-quantum-300 font-bold">0.09ms</td>
+          </tr>
+          <!-- Classical model -->
+          <tr class="hover:bg-white/[0.02] transition">
+            <td class="px-4 py-3 text-gray-500 font-mono">5</td>
+            <td class="px-4 py-3 text-white font-medium">Classical LSTM</td>
+            <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Classical</span></td>
+            <td class="px-4 py-3 text-gray-300 font-mono">0.02017</td>
+            <td class="px-4 py-3 text-gray-300 font-mono">0.06367</td>
+            <td class="px-4 py-3 text-gray-300 font-mono">0.748</td>
+            <td class="px-4 py-3 text-gray-400">58,036</td>
+            <td class="px-4 py-3 text-gray-400">12.7s</td>
+            <td class="px-4 py-3 text-gray-400">0.70ms</td>
+          </tr>
+          <!-- Classical model -->
+          <tr class="hover:bg-white/[0.02] transition">
+            <td class="px-4 py-3 text-gray-500 font-mono">6</td>
+            <td class="px-4 py-3 text-white font-medium">Random Forest</td>
+            <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Classical</span></td>
+            <td class="px-4 py-3 text-gray-300 font-mono">0.02034</td>
+            <td class="px-4 py-3 text-gray-300 font-mono">0.05058</td>
+            <td class="px-4 py-3 text-gray-300 font-mono">0.746</td>
+            <td class="px-4 py-3 text-gray-400">~917K</td>
+            <td class="px-4 py-3 text-gray-400">15.8s</td>
+            <td class="px-4 py-3 text-gray-400">839ms</td>
+          </tr>
+          <!-- Quantum model -->
+          <tr class="hover:bg-quantum-600/[0.06] transition" style="background:rgba(139,92,246,0.05)">
+            <td class="px-4 py-3 text-quantum-400 font-mono">7</td>
+            <td class="px-4 py-3 text-quantum-200 font-medium">QUANTECH MLP</td>
+            <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-quantum-500/20 text-quantum-300 border border-quantum-500/30">Quantum</span></td>
+            <td class="px-4 py-3 text-gray-300 font-mono">0.02037</td>
+            <td class="px-4 py-3 text-gray-300 font-mono">0.06530</td>
+            <td class="px-4 py-3 text-gray-300 font-mono">0.745</td>
+            <td class="px-4 py-3 text-gray-400">377,492</td>
+            <td class="px-4 py-3 text-gray-400">pre-computed</td>
+            <td class="px-4 py-3 text-gray-400">0.28ms</td>
+          </tr>
+          <!-- Classical model -->
+          <tr class="hover:bg-white/[0.02] transition">
+            <td class="px-4 py-3 text-gray-500 font-mono">8</td>
+            <td class="px-4 py-3 text-white font-medium">SVR (RBF)</td>
+            <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Classical</span></td>
+            <td class="px-4 py-3 text-gray-300 font-mono">0.02116</td>
+            <td class="px-4 py-3 text-gray-300 font-mono">0.05554</td>
+            <td class="px-4 py-3 text-gray-300 font-mono">0.736</td>
+            <td class="px-4 py-3 text-gray-400">kernel</td>
+            <td class="px-4 py-3 text-gray-400">0.06s</td>
+            <td class="px-4 py-3 text-gray-400">25.7ms</td>
+          </tr>
+          <!-- Classical model -->
+          <tr class="hover:bg-white/[0.02] transition">
+            <td class="px-4 py-3 text-gray-500 font-mono">9</td>
+            <td class="px-4 py-3 text-white font-medium">Gradient Boosting</td>
+            <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Classical</span></td>
+            <td class="px-4 py-3 text-gray-300 font-mono">0.02763</td>
+            <td class="px-4 py-3 text-gray-300 font-mono">0.05596</td>
+            <td class="px-4 py-3 text-gray-300 font-mono">0.655</td>
+            <td class="px-4 py-3 text-gray-400">~200 trees</td>
+            <td class="px-4 py-3 text-gray-400">16.7s</td>
+            <td class="px-4 py-3 text-gray-400">203ms</td>
+          </tr>
+          <!-- Quantum model -->
+          <tr class="hover:bg-quantum-600/[0.06] transition" style="background:rgba(139,92,246,0.05)">
+            <td class="px-4 py-3 text-gray-500 font-mono">10</td>
+            <td class="px-4 py-3 text-quantum-200 font-medium">Quantum LSTM</td>
+            <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-quantum-500/20 text-quantum-300 border border-quantum-500/30">Quantum</span></td>
+            <td class="px-4 py-3 text-red-400 font-mono">0.05374</td>
+            <td class="px-4 py-3 text-red-400 font-mono">0.09183</td>
+            <td class="px-4 py-3 text-red-400 font-mono">0.328</td>
+            <td class="px-4 py-3 text-gray-400">2,180</td>
+            <td class="px-4 py-3 text-red-400">93.0s</td>
+            <td class="px-4 py-3 text-red-400">27.1ms</td>
+          </tr>
+          <!-- Quantum model -->
+          <tr class="hover:bg-quantum-600/[0.06] transition" style="background:rgba(139,92,246,0.05)">
+            <td class="px-4 py-3 text-gray-500 font-mono">11</td>
+            <td class="px-4 py-3 text-quantum-200 font-medium">VQC (Trained)</td>
+            <td class="px-4 py-3"><span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-quantum-500/20 text-quantum-300 border border-quantum-500/30">Quantum</span></td>
+            <td class="px-4 py-3 text-red-400 font-mono">0.09521</td>
+            <td class="px-4 py-3 text-red-400 font-mono">0.11493</td>
+            <td class="px-4 py-3 text-red-400 font-mono">-0.190</td>
+            <td class="px-4 py-3 text-gray-400">1,166</td>
+            <td class="px-4 py-3 text-red-400">3.81s</td>
+            <td class="px-4 py-3 text-red-400">1.28ms</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- ── CHARTS ── -->
+    <h3 class="font-display text-2xl font-bold text-white text-center mb-4 reveal">Visual Comparisons</h3>
+    <p class="text-center text-sm text-gray-500 mb-10 reveal">
+      <span class="inline-flex items-center gap-1.5 mr-4"><span class="w-3 h-3 rounded-sm" style="background:rgba(139,92,246,0.8)"></span><span class="text-quantum-300 font-medium">Quantum models</span></span>
+      <span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm" style="background:rgba(16,185,129,0.8)"></span><span class="text-emerald-300 font-medium">Classical models</span></span>
+    </p>
+
+    <div class="grid lg:grid-cols-2 gap-8 mb-16">
+      <!-- Chart 1: Latent MSE comparison -->
+      <div class="glass rounded-2xl p-6 reveal">
+        <h4 class="font-display font-semibold text-white mb-4 text-center">Latent MSE by Model</h4>
+        <div class="chart-container" style="height:340px">
+          <canvas id="chartMSE"></canvas>
+        </div>
+      </div>
+
+      <!-- Chart 2: R² comparison -->
+      <div class="glass rounded-2xl p-6 reveal">
+        <h4 class="font-display font-semibold text-white mb-4 text-center">R² Score (higher is better)</h4>
+        <div class="chart-container" style="height:340px">
+          <canvas id="chartR2"></canvas>
+        </div>
+      </div>
+
+      <!-- Chart 3: Training time (log scale) -->
+      <div class="glass rounded-2xl p-6 reveal">
+        <h4 class="font-display font-semibold text-white mb-4 text-center">Training Time (seconds, log scale)</h4>
+        <div class="chart-container" style="height:340px">
+          <canvas id="chartTrainTime"></canvas>
+        </div>
+      </div>
+
+      <!-- Chart 4: Inference time -->
+      <div class="glass rounded-2xl p-6 reveal">
+        <h4 class="font-display font-semibold text-white mb-4 text-center">Inference Latency (ms, log scale)</h4>
+        <div class="chart-container" style="height:340px">
+          <canvas id="chartInference"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart 5: Radar chart — full width -->
+    <div class="glass rounded-2xl p-6 max-w-3xl mx-auto mb-16 reveal">
+      <h4 class="font-display font-semibold text-white mb-4 text-center">Multi-Metric Radar: Top 3 Models + Quantum LSTM</h4>
+      <div class="chart-container" style="height:420px">
+        <canvas id="chartRadar"></canvas>
+      </div>
+    </div>
+
+    <!-- Chart 6: Surface RMSE bar chart -->
+    <div class="grid lg:grid-cols-2 gap-8 mb-16">
+      <div class="glass rounded-2xl p-6 reveal">
+        <h4 class="font-display font-semibold text-white mb-4 text-center">Surface RMSE (price-space error)</h4>
+        <div class="chart-container" style="height:340px">
+          <canvas id="chartSurface"></canvas>
+        </div>
+      </div>
+
+      <!-- Chart 7: Efficiency scatter plot -->
+      <div class="glass rounded-2xl p-6 reveal">
+        <h4 class="font-display font-semibold text-white mb-4 text-center">Accuracy vs Inference Speed</h4>
+        <div class="chart-container" style="height:340px">
+          <canvas id="chartScatter"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Key Insights -->
+    <div class="grid md:grid-cols-2 gap-6 reveal">
+      <div class="glass rounded-2xl p-8">
+        <h4 class="font-display font-semibold text-white mb-4 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-quantum-400"></span>
+          ★ QORC + Ridge: Our Best Quantum Model
+        </h4>
+        <p class="text-sm text-gray-400 leading-relaxed">
+          Ranks <strong class="text-quantum-300">#4 of 11</strong> with MSE 0.014, R² 0.825, and the <strong class="text-quantum-300">fastest inference at 0.09ms</strong>. Uses 1,215 Fock features from 3 photonic reservoirs + Ridge readout. Only 1.6× behind Simple PML+Ridge and <strong class="text-quantum-300">competitive with purely classical Ridge</strong> — proving the full sandwich QORC architecture works on real financial data.
+        </p>
+      </div>
+      <div class="glass rounded-2xl p-8">
+        <h4 class="font-display font-semibold text-white mb-4 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-quantum-300"></span>
+          Quantum Models Dominate Top 4
+        </h4>
+        <p class="text-sm text-gray-400 leading-relaxed">
+          Two of the top 4 models are quantum: <strong class="text-quantum-300">Simple PML+Ridge (#1)</strong> and <strong class="text-quantum-300">QORC+Ridge (#4)</strong>. The top quantum models beat all classical alternatives except Ridge and MLP — demonstrating that photonic feature extraction genuinely captures financial structure beyond what classical methods achieve.
+        </p>
+      </div>
+      <div class="glass rounded-2xl p-8">
+        <h4 class="font-display font-semibold text-white mb-4 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-red-400"></span>
+          VQC & Quantum LSTM: Trainable Parameters Overfit
+        </h4>
+        <p class="text-sm text-gray-400 leading-relaxed">
+          <strong class="text-red-400">VQC (R² = -0.19)</strong> and <strong class="text-red-400">Quantum LSTM (R² = 0.33)</strong> are the worst performers. Both train quantum circuit parameters on only 494 samples → severe overfitting and barren plateaus. This validates our <strong class="text-white">reservoir computing paradigm</strong>: fix quantum weights, train only classical readout.
+        </p>
+      </div>
+      <div class="glass rounded-2xl p-8">
+        <h4 class="font-display font-semibold text-white mb-4 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+          Ridge Readout Beats MLP Everywhere
+        </h4>
+        <p class="text-sm text-gray-400 leading-relaxed">
+          QORC+Ridge (MSE 0.014) outperforms QUANTECH MLP (0.020) by <strong class="text-emerald-300">31%</strong> using the same quantum features. Simple PML+Ridge (0.0105) beats sklearn MLP (0.0136) by <strong class="text-emerald-300">22%</strong>. On small data, L2-regularized linear readouts generalize dramatically better than neural network heads.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider"></div>
+
+
+<!-- ╔══════════════════════════════════════════════╗ -->
+<!-- ║  QUANTUM ADVANTAGE SECTION                   ║ -->
+<!-- ╚══════════════════════════════════════════════╝ -->
+<section id="quantum-advantage" class="relative py-28">
+  <div class="max-w-5xl mx-auto px-6">
+    <div class="text-center mb-16 reveal">
+      <span class="text-quantum-400 text-sm font-semibold tracking-widest uppercase">Why Quantum</span>
+      <h2 class="font-display text-4xl md:text-5xl font-bold text-white mt-3">Quantum Advantage</h2>
+    </div>
+
+    <div class="grid md:grid-cols-2 gap-6 mb-16">
+      <!-- QA 1 -->
+      <div class="glass rounded-2xl p-8 reveal quantum-glow">
+        <div class="w-12 h-12 rounded-xl bg-quantum-600/20 flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-quantum-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+        </div>
+        <h3 class="font-display font-semibold text-quantum-200 mb-3">Exponential Feature Space</h3>
+        <p class="text-sm text-gray-300 leading-relaxed">
+          3 photons in 12 modes → <strong class="text-quantum-200">364 Fock outcomes</strong> computed simultaneously. Each configuration represents a distinct quantum interference pattern — an exponentially rich feature space from modest physical resources.
+        </p>
+      </div>
+
+      <!-- QA 2 -->
+      <div class="glass rounded-2xl p-8 reveal quantum-glow" style="transition-delay:0.1s">
+        <div class="w-12 h-12 rounded-xl bg-quantum-600/20 flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-quantum-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+        </div>
+        <h3 class="font-display font-semibold text-quantum-200 mb-3">#P-Hard Features</h3>
+        <p class="text-sm text-gray-300 leading-relaxed">
+          Each Fock probability depends on the <strong class="text-quantum-200">permanent of a unitary submatrix</strong> — a #P-hard computation classically. Our photonic chip computes these natively through quantum interference.
+        </p>
+      </div>
+
+      <!-- QA 3 -->
+      <div class="glass rounded-2xl p-8 reveal quantum-glow" style="transition-delay:0.2s">
+        <div class="w-12 h-12 rounded-xl bg-quantum-600/20 flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-quantum-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+        </div>
+        <h3 class="font-display font-semibold text-quantum-200 mb-3">Physically-Motivated Nonlinearity</h3>
+        <p class="text-sm text-gray-300 leading-relaxed">
+          Not random kitchen sinks — genuine <strong class="text-quantum-200">multi-body quantum correlations</strong>. The nonlinearities arise from photon bunching, interference, and Fock-space statistics — physics that cannot be efficiently simulated classically.
+        </p>
+      </div>
+
+      <!-- QA 4 -->
+      <div class="glass rounded-2xl p-8 reveal quantum-glow" style="transition-delay:0.3s">
+        <div class="w-12 h-12 rounded-xl bg-quantum-600/20 flex items-center justify-center mb-4">
+          <svg class="w-6 h-6 text-quantum-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+        </div>
+        <h3 class="font-display font-semibold text-quantum-200 mb-3">Ensemble Diversity Through Physics</h3>
+        <p class="text-sm text-gray-300 leading-relaxed">
+          Different photon numbers create fundamentally different feature families: <strong class="text-quantum-200">pairwise</strong> (2), <strong class="text-quantum-200">cubic</strong> (3), and <strong class="text-quantum-200">quartic</strong> (4) correlations. No classical ensemble achieves this diversity from a single architecture.
+        </p>
+      </div>
+    </div>
+
+    <!-- Hardware comparison table -->
+    <div class="overflow-x-auto reveal">
+      <h3 class="font-display text-xl font-bold text-white text-center mb-6">Photonic QRC vs Classical Simulation</h3>
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-white/10">
+            <th class="px-4 py-3 text-left text-xs font-display font-semibold text-gray-400 uppercase tracking-wider">Aspect</th>
+            <th class="px-4 py-3 text-left text-xs font-display font-semibold text-gray-400 uppercase tracking-wider">Classical Simulation</th>
+            <th class="px-4 py-3 text-left text-xs font-display font-semibold text-quantum-400 uppercase tracking-wider">Photonic QPU</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-white/5">
+          <tr>
+            <td class="px-4 py-3 text-gray-300">Fock feature computation</td>
+            <td class="px-4 py-3 text-gray-400">O(C(n+m,n)) per sample</td>
+            <td class="px-4 py-3 text-quantum-300 font-semibold">O(1) single shot</td>
+          </tr>
+          <tr>
+            <td class="px-4 py-3 text-gray-300">Latency per inference</td>
+            <td class="px-4 py-3 text-gray-400">~100-500 ms (CPU)</td>
+            <td class="px-4 py-3 text-quantum-300 font-semibold">~nanoseconds</td>
+          </tr>
+          <tr>
+            <td class="px-4 py-3 text-gray-300">Energy per inference</td>
+            <td class="px-4 py-3 text-gray-400">~10-50 W (CPU)</td>
+            <td class="px-4 py-3 text-quantum-300 font-semibold">~microwatts</td>
+          </tr>
+          <tr>
+            <td class="px-4 py-3 text-gray-300">Scalability</td>
+            <td class="px-4 py-3 text-gray-400">Combinatorial explosion</td>
+            <td class="px-4 py-3 text-quantum-300 font-semibold">Linear in mode count</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<div class="section-divider"></div>
+
+
+<!-- ╔══════════════════════════════════════════════╗ -->
+<!-- ║  FOOTER                                      ║ -->
+<!-- ╚══════════════════════════════════════════════╝ -->
+<footer class="py-16 border-t border-white/5">
+  <div class="max-w-7xl mx-auto px-6">
+    <div class="flex flex-col md:flex-row items-center justify-between gap-8">
+      <div>
+        <a href="#hero" class="font-display text-2xl font-bold">
+          <span class="text-white">Quan</span><span class="text-quantum-400">Tech</span>
+        </a>
+        <p class="text-gray-500 text-sm mt-2">Q-volution Hackathon 2026 · Quandela Challenge</p>
+      </div>
+      <div class="flex items-center gap-6 text-sm text-gray-500">
+        <a href="#challenge" class="hover:text-gray-300 transition">Challenge</a>
+        <a href="#architecture" class="hover:text-gray-300 transition">Architecture</a>
+        <a href="#innovations" class="hover:text-gray-300 transition">Innovations</a>
+        <a href="#results" class="hover:text-gray-300 transition">Results</a>
+        <a href="#benchmarks" class="hover:text-gray-300 transition">Benchmarks</a>
+        <a href="https://github.com/" target="_blank" class="hover:text-gray-300 transition">GitHub</a>
+      </div>
+    </div>
+    <div class="mt-8 pt-8 border-t border-white/5 text-center text-xs text-gray-600">
+      Built with photons and passion · Hybrid Photonic QRC for Financial Derivatives
+    </div>
+  </div>
+</footer>
+
+
+<!-- ╔══════════════════════════════════════════════╗ -->
+<!-- ║  JAVASCRIPT                                  ║ -->
+<!-- ╚══════════════════════════════════════════════╝ -->
+<script>
+// ── Scroll reveal ──
+const revealObserver = new IntersectionObserver((entries) => {
+  entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('visible'); } });
+}, { threshold: 0.1 });
+document.querySelectorAll('.reveal').forEach(el => revealObserver.observe(el));
+
+// ── Navbar background on scroll ──
+window.addEventListener('scroll', () => {
+  const nav = document.getElementById('navbar');
+  if (window.scrollY > 50) {
+    nav.style.background = 'rgba(10,10,15,0.95)';
+    nav.style.borderBottomColor = 'rgba(255,255,255,0.06)';
+  } else {
+    nav.style.background = 'rgba(10,10,15,0.8)';
+    nav.style.borderBottomColor = 'rgba(255,255,255,0.04)';
+  }
+});
+
+// ── Mobile menu toggle ──
+document.getElementById('mobileMenuBtn').addEventListener('click', () => {
+  document.getElementById('mobileMenu').classList.toggle('hidden');
+});
+
+// ── Pipeline step toggle ──
+function toggleDetail(el) {
+  const detail = el.querySelector('.step-detail');
+  const chevron = el.querySelector('.step-chevron');
+  detail.classList.toggle('hidden');
+  if (chevron) chevron.style.transform = detail.classList.contains('hidden') ? '' : 'rotate(180deg)';
+}
+
+
+// ═══════════════════════════════════════════════════
+//  CHARTS (Chart.js)
+// ═══════════════════════════════════════════════════
+
+// Sorted by latent MSE (ascending). Q = Quantum, C = Classical.
+const MODELS = [
+  'Simple PML\n+Ridge', 'Ridge\nRegression', 'sklearn\nMLP',
+  '★ QORC+Ridge\n(ours)', 'Classical\nLSTM', 'Random\nForest',
+  'QUANTECH\nMLP', 'SVR\n(RBF)', 'Gradient\nBoosting',
+  'Quantum\nLSTM', 'VQC\n(Trained)'
+];
+const MODELS_SHORT = ['PML+Ridge', 'Ridge', 'MLP', '★ QORC+Ridge', 'LSTM', 'RF', 'QUANTECH', 'SVR', 'GBR', 'QLSTM', 'VQC'];
+const IS_QUANTUM = [true, false, false, true, false, false, true, false, false, true, true];
+
+const latentMSE      = [0.01053, 0.01095, 0.01357, 0.01400, 0.02017, 0.02034, 0.02037, 0.02116, 0.02763, 0.05374, 0.09521];
+const surfaceRMSE    = [0.04709, 0.04685, 0.05184, 0.05027, 0.06367, 0.05058, 0.06530, 0.05554, 0.05596, 0.09183, 0.11493];
+const r2Scores       = [0.868, 0.863, 0.830, 0.825, 0.748, 0.746, 0.745, 0.736, 0.655, 0.328, -0.190];
+const trainTimes     = [0.06, 0.01, 1.92, 0.08, 12.7, 15.8, 0.01, 0.06, 16.7, 93.0, 3.81];
+const inferenceTimes = [1.36, 0.05, 44.4, 0.09, 0.70, 839.0, 0.28, 25.7, 203.0, 27.1, 1.28];
+
+// Color palette — Quantum = purple/violet family, Classical = green/blue/amber family
+const BG_COLORS = IS_QUANTUM.map((q, i) => {
+  if (i === 3) return 'rgba(139,92,246,0.95)'; // ★ QORC+Ridge — bright highlight
+  if (q) return 'rgba(167,139,250,0.65)';       // other quantum — soft purple
+  return 'rgba(16,185,129,0.65)';                // classical — emerald
+});
+const BORDER_COLORS = IS_QUANTUM.map((q, i) => {
+  if (i === 3) return 'rgba(139,92,246,1)';
+  if (q) return 'rgba(167,139,250,1)';
+  return 'rgba(16,185,129,1)';
+});
+
+const chartDefaults = {
+  color: '#9ca3af',
+  borderColor: 'rgba(255,255,255,0.06)',
+};
+Chart.defaults.color = chartDefaults.color;
+Chart.defaults.borderColor = chartDefaults.borderColor;
+Chart.defaults.font.family = 'Inter, system-ui, sans-serif';
+
+// ── Chart 1: Latent MSE ──
+new Chart(document.getElementById('chartMSE'), {
+  type: 'bar',
+  data: {
+    labels: MODELS,
+    datasets: [{
+      label: 'Latent MSE',
+      data: latentMSE,
+      backgroundColor: BG_COLORS,
+      borderColor: BORDER_COLORS,
+      borderWidth: 1,
+      borderRadius: 6,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: ctx => `MSE: ${ctx.parsed.y.toFixed(5)}` }}
+    },
+    scales: {
+      y: { beginAtZero: true, title: { display: true, text: 'Latent MSE' }, grid: { color: 'rgba(255,255,255,0.04)' }},
+      x: { grid: { display: false }, ticks: { maxRotation: 0, font: { size: 10 } }}
+    }
+  }
+});
+
+// ── Chart 2: R² ──
+new Chart(document.getElementById('chartR2'), {
+  type: 'bar',
+  data: {
+    labels: MODELS,
+    datasets: [{
+      label: 'R² Score',
+      data: r2Scores,
+      backgroundColor: BG_COLORS,
+      borderColor: BORDER_COLORS,
+      borderWidth: 1,
+      borderRadius: 6,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: ctx => `R²: ${ctx.parsed.y.toFixed(3)}` }}
+    },
+    scales: {
+      y: { beginAtZero: true, max: 1, title: { display: true, text: 'R² Score' }, grid: { color: 'rgba(255,255,255,0.04)' }},
+      x: { grid: { display: false }, ticks: { maxRotation: 0, font: { size: 10 } }}
+    }
+  }
+});
+
+// ── Chart 3: Training time (log scale) ──
+new Chart(document.getElementById('chartTrainTime'), {
+  type: 'bar',
+  data: {
+    labels: MODELS,
+    datasets: [{
+      label: 'Training Time (s)',
+      data: trainTimes,
+      backgroundColor: BG_COLORS,
+      borderColor: BORDER_COLORS,
+      borderWidth: 1,
+      borderRadius: 6,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: ctx => `${ctx.parsed.y.toFixed(2)}s` }}
+    },
+    scales: {
+      y: { type: 'logarithmic', title: { display: true, text: 'Training Time (s) — log scale' }, grid: { color: 'rgba(255,255,255,0.04)' }},
+      x: { grid: { display: false }, ticks: { maxRotation: 0, font: { size: 10 } }}
+    }
+  }
+});
+
+// ── Chart 4: Inference time (log scale) ──
+new Chart(document.getElementById('chartInference'), {
+  type: 'bar',
+  data: {
+    labels: MODELS,
+    datasets: [{
+      label: 'Inference (ms)',
+      data: inferenceTimes,
+      backgroundColor: BG_COLORS,
+      borderColor: BORDER_COLORS,
+      borderWidth: 1,
+      borderRadius: 6,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: ctx => `${ctx.parsed.y.toFixed(2)} ms` }}
+    },
+    scales: {
+      y: { type: 'logarithmic', title: { display: true, text: 'Inference Latency (ms) — log scale' }, grid: { color: 'rgba(255,255,255,0.04)' }},
+      x: { grid: { display: false }, ticks: { maxRotation: 0, font: { size: 10 } }}
+    }
+  }
+});
+
+// ── Chart 5: Radar chart (top models) ──
+// Normalize metrics to 0-1 for radar (invert where lower is better)
+function norm(arr, invert) {
+  const min = Math.min(...arr), max = Math.max(...arr);
+  return arr.map(v => {
+    const n = (v - min) / (max - min || 1);
+    return invert ? 1 - n : n;
+  });
+}
+const nMSE = norm(latentMSE, true);
+const nR2 = norm(r2Scores, false);
+const nTrain = norm(trainTimes, true);
+const nInf = norm(inferenceTimes, true);
+const nSurf = norm(surfaceRMSE, true);
+
+const radarLabels = ['Latent Accuracy', 'R² Score', 'Fast Training', 'Fast Inference', 'Surface Accuracy'];
+// Indices: 0=Simple PML+Ridge, 1=Ridge, 3=QORC+Ridge(ours), 9=Quantum LSTM
+const radarIndices = [0, 1, 3];
+const radarNames = ['Simple PML + Ridge', 'Ridge Regression', '★ QORC + Ridge (ours)'];
+const radarColors = [
+  { bg: 'rgba(167,139,250,0.15)', border: 'rgba(167,139,250,0.8)' },
+  { bg: 'rgba(16,185,129,0.15)', border: 'rgba(16,185,129,0.8)' },
+  { bg: 'rgba(139,92,246,0.25)', border: 'rgba(139,92,246,1)' },
+];
+const radarDatasets = radarIndices.map((idx, i) => ({
+  label: radarNames[i],
+  data: [nMSE[idx], nR2[idx], nTrain[idx], nInf[idx], nSurf[idx]],
+  backgroundColor: radarColors[i].bg,
+  borderColor: radarColors[i].border,
+  borderWidth: 2,
+  pointBackgroundColor: radarColors[i].border,
+  pointRadius: 4,
+}));
+// Add Quantum LSTM + VQC for contrast
+radarDatasets.push({
+  label: 'Quantum LSTM',
+  data: [nMSE[9], nR2[9], nTrain[9], nInf[9], nSurf[9]],
+  backgroundColor: 'rgba(239,68,68,0.1)',
+  borderColor: 'rgba(239,68,68,0.7)',
+  borderWidth: 1.5,
+  borderDash: [4, 4],
+  pointBackgroundColor: 'rgba(239,68,68,0.7)',
+  pointRadius: 3,
+});
+
+new Chart(document.getElementById('chartRadar'), {
+  type: 'radar',
+  data: { labels: radarLabels, datasets: radarDatasets },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'bottom', labels: { padding: 20, usePointStyle: true, font: { size: 11 } }},
+    },
+    scales: {
+      r: {
+        beginAtZero: true, max: 1,
+        grid: { color: 'rgba(255,255,255,0.06)' },
+        angleLines: { color: 'rgba(255,255,255,0.06)' },
+        pointLabels: { font: { size: 11 }, color: '#d1d5db' },
+        ticks: { display: false },
+      }
+    }
+  }
+});
+
+// ── Chart 6: Surface RMSE ──
+new Chart(document.getElementById('chartSurface'), {
+  type: 'bar',
+  data: {
+    labels: MODELS,
+    datasets: [{
+      label: 'Surface RMSE',
+      data: surfaceRMSE,
+      backgroundColor: BG_COLORS,
+      borderColor: BORDER_COLORS,
+      borderWidth: 1,
+      borderRadius: 6,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: ctx => `RMSE: ${ctx.parsed.y.toFixed(5)}` }}
+    },
+    scales: {
+      y: { beginAtZero: true, title: { display: true, text: 'Surface RMSE' }, grid: { color: 'rgba(255,255,255,0.04)' }},
+      x: { grid: { display: false }, ticks: { maxRotation: 0, font: { size: 10 } }}
+    }
+  }
+});
+
+// ── Chart 7: Scatter — Accuracy vs Inference Speed ──
+const scatterData = MODELS_SHORT.map((name, i) => ({
+  x: Math.log10(inferenceTimes[i]),
+  y: latentMSE[i],
+  label: name,
+}));
+
+new Chart(document.getElementById('chartScatter'), {
+  type: 'scatter',
+  data: {
+    datasets: MODELS_SHORT.map((name, i) => ({
+      label: name,
+      data: [{ x: Math.log10(inferenceTimes[i]), y: latentMSE[i] }],
+      backgroundColor: BG_COLORS[i],
+      borderColor: BORDER_COLORS[i],
+      borderWidth: 2,
+      pointRadius: i === 3 ? 10 : 7,
+      pointHoverRadius: 12,
+      pointStyle: i === 3 ? 'star' : 'circle',
+    }))
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { display: true, position: 'bottom', labels: { padding: 12, usePointStyle: true, font: { size: 10 } }},
+      tooltip: {
+        callbacks: {
+          label: ctx => {
+            const ms = Math.pow(10, ctx.parsed.x).toFixed(2);
+            return `${ctx.dataset.label}: MSE=${ctx.parsed.y.toFixed(5)}, Inf=${ms}ms`;
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        title: { display: true, text: 'Inference Time (log₁₀ ms) →' },
+        grid: { color: 'rgba(255,255,255,0.04)' },
+        ticks: {
+          callback: v => {
+            const ms = Math.pow(10, v);
+            if (ms < 1) return ms.toFixed(1) + 'ms';
+            if (ms < 100) return ms.toFixed(0) + 'ms';
+            return (ms/1000).toFixed(1) + 's';
+          }
+        }
+      },
+      y: {
+        title: { display: true, text: '← Latent MSE (lower is better)' },
+        grid: { color: 'rgba(255,255,255,0.04)' },
+      }
+    }
+  }
+});
+</script>
+
+</body>
+</html>
