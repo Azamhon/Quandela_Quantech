@@ -1,0 +1,95 @@
+Build a single-page landing website for our hackathon project at website/index.html with Tailwind CSS via CDN. Dark theme with purple/violet quantum-inspired accents.
+                                                                                                                                                                               
+  Header: Fixed navbar. Left: team name "QuanTech". Right: nav links (Challenge, Architecture, Key Innovations, Results, GitHub). Clean, minimal.
+
+  Hero Section: Full viewport height. Large headline: "Interpretable NISQ-ML for Financial Derivatives". Subheadline: "Hybrid Photonic Quantum Reservoir Computing for Swaption
+   Pricing — combining the computational richness of quantum optics with classical neural networks for sample-efficient, interpretable financial prediction.". Team members
+  listed below: [PUT YOUR NAMES HERE + AFFILIATIONS]. Two CTA buttons: "Explore the Solution" (scrolls down) and "GitHub" (link to repo, opens new tab). Subtle animated
+  background — CSS-only particle/grid effect, nothing heavy.
+
+  Challenge Section: Explain the problem concisely. Three cards: (1) 494 daily swaption surfaces, 224 dimensions each — a 14×16 tenor/maturity grid of interest rate derivative
+   prices (2) Two tasks: forecast 6 future surfaces autoregressively + impute 4-6 missing values in partial surfaces (3) Constraint: must use MerLin photonic framework, ≤20
+  modes, ≤10 photons, no amplitude encoding. Use icons or simple SVG illustrations.
+
+  "Why This is Hard" mini-section right after challenge: three short bullet points — (1) 224-dimensional output is far too large for any quantum circuit to handle directly (2)
+   Only 494 training samples — deep models overfit, shallow models underfit (3) Swaption surfaces have strong no-arbitrage structure that naive models ignore.
+
+  Architecture Section: Full pipeline diagram recreated as an interactive HTML/CSS flowchart (not an image). Show the flow with each node as a styled card with a brief
+  description and arrows/connectors between them:
+
+  1. Raw Swaption Data (494 × 224) — daily price surfaces on a tenor × maturity grid
+  2. Robust Preprocessing — 3-stage pipeline: winsorize outliers at 1st/99th percentile → RobustScaler (median/IQR, resistant to fat tails) → MinMax to [0,1]. Financial data
+  has extreme outliers that corrupt standard scaling — this pipeline handles them gracefully while remaining perfectly invertible.
+  3. Sparse Denoising Autoencoder — 224 → 128 → 64 → 20 latent dims. Learns a nonlinear manifold of swaption surfaces. ELU bottleneck prevents dead neurons. Random masking
+  (15%) during training teaches reconstruction from partial inputs — this is what enables missing data imputation. L1 sparsity penalty forces each latent dim to represent a
+  distinct market factor (level, slope, curvature, smile).
+  4. Temporal Windowing — 5-step sliding window of latent codes + first-difference delta vector. Captures recent dynamics and momentum in a compact representation.
+  5. Ensemble QORC ×3 — 3 fixed photonic reservoirs via MerLin. 12-mode/3-photon (364 features) + 10-mode/4-photon (715 features) + 16-mode/2-photon (136 features) = 1,215
+  Fock-probability features. Sandwich circuit: Haar-random unitary → Phase shifters (data encoding) → Haar-random unitary. Fixed weights — computed once, cached.
+  6. Classical MLP Head — quantum features (1215) + classical context (120) → GELU activations → predicted next latent code (20 dims). Only trained component. Skip connection
+  from classical features ensures the quantum features augment, not replace, temporal context.
+  7. AE Decoder (frozen) — 20 → 64 → 128 → 224. Reconstructs full swaption surface. Guarantees predictions lie on the learned manifold.
+
+  Highlight the quantum component (step 5) visually with a different accent color or glow effect.
+
+  Key Innovations Section: This is a major section. Use a two-column layout with expandable cards or tall cards with room for detail. 8 cards:
+
+  1. Robust 3-Stage Preprocessing vs Standard Scaling
+    - Problem: Financial data has fat tails — a single extreme day can distort mean/std and corrupt StandardScaler.
+    - Our approach: Winsorize (clip to 1st/99th percentile) → RobustScaler (uses median and IQR instead of mean/std) → MinMax to [0,1].
+    - Effect: Outlier-resistant normalization that's perfectly invertible. Training bounds saved and applied identically at test time — zero data leakage.
+  2. Sparse Denoising Autoencoder vs PCA
+    - Problem: Most teams use PCA for dimensionality reduction. PCA is strictly linear — it cannot capture smile dynamics, skew, or term structure curvature in swaption
+  surfaces.
+    - Our approach: Nonlinear autoencoder with denoising (random 15% masking) and L1 sparsity.
+    - Effect: Learns a nonlinear manifold that captures complex surface structure PCA misses. Denoising training directly enables Task B (missing data imputation) — the AE
+  naturally fills gaps because it was trained to reconstruct from masked inputs. L1 sparsity yields interpretable latent factors — each dimension corresponds to a distinct
+  market factor.
+  3. ELU Bottleneck vs ReLU
+    - Problem: ReLU activations at the bottleneck layer cause "dying neurons" — latent dimensions that collapse to zero and never recover, wasting capacity.
+    - Our approach: ELU activation at the bottleneck (allows small negative values).
+    - Effect: All 20 latent dimensions remain active throughout training. Combined with L1 sparsity, we get selective sparsity (some dims near-zero for specific inputs)
+  without permanent death.
+  4. Fixed QORC Ensemble vs Trained Quantum Circuits
+    - Problem: Training quantum circuit parameters with only 494 samples leads to overfitting and barren plateaus.
+    - Our approach: Reservoir computing paradigm — fixed random photonic circuits + trained classical readout.
+    - Effect: Avoids barren plateaus entirely. Quantum features computed once and cached — no re-simulation every epoch. Training is fast (~20 min total).
+  5. Ensemble Diversity via Physics, Not Random Seeds
+    - Problem: Classical ensembles use different random seeds of the same model — limited diversity.
+    - Our approach: Three reservoirs with different photon numbers (2, 3, 4) creating qualitatively different Fock spaces.
+    - Effect: Pairwise correlations (2 photons), cubic interactions (3 photons), and quartic interactions (4 photons) — fundamentally different nonlinear feature families that
+   cannot be replicated by different seeds of the same function class.
+  6. Phase Encoding via Sigmoid → [0, 2π]
+    - Problem: Challenge prohibits amplitude encoding. Need a mapping from real-valued latent features to phase parameters.
+    - Our approach: Sigmoid maps to [0, 1], scaled to [0, 2π].
+    - Effect: Smooth, differentiable, exploits full optical periodicity. Gradients flow through during head training.
+  7. Predict in Latent Space, Not Price Space
+    - Problem: Directly predicting 224 prices is high-dimensional and noisy.
+    - Our approach: Predict the 20-dim latent code, then decode to prices via the frozen AE decoder.
+    - Effect: 20-dim prediction is dramatically easier. The decoder guarantees all outputs respect the learned surface manifold — no arbitrage-violating predictions possible.
+  8. Combined Latent + Surface Loss
+    - Formula: L = MSE(z_pred, z_true) + 0.1 × MSE(surface_pred, surface_true)
+    - Why both: Latent loss gives smooth, direct gradients early in training. Surface loss provides end-to-end accuracy signal in price space. The 0.1 weight prevents the
+  noisier surface loss from dominating.
+    - Effect: Gradients flow through the frozen AE decoder back to the head — end-to-end training signal without requiring decoder parameter updates.
+
+  Results Section: Display key metrics in large styled cards: Validation Loss (0.022), Imputation Z-score (<2σ), Quantum Features (1,215 dims), Training Time (~20 min), AE
+  Reconstruction RMSE (<0.01), All Imputed Values Within Physical Range. Below that, a comparison table benchmarking against LSTM, QLSTM, DNN, and Random Forest — columns:
+  Model, Approach, RMSE, MAPE, Quantum Features (Y/N), Training Time. Leave placeholder values for benchmarks with -- that I'll fill in later. Style the table so our model's
+  row is highlighted/accented. Add a note below the table: "Benchmark values to be filled after comparative experiments."
+
+  Quantum Advantage Section: Brief section with 4 points: (1) Exponential feature space — 3 photons in 12 modes → 364 Fock outcomes computed simultaneously (2) Each Fock
+  probability depends on the permanent of a unitary submatrix — #P-hard classically (3) Physically-motivated nonlinearity — not random kitchen sinks, but genuine multi-body
+  quantum correlations (4) Ensemble diversity through physics — different photon numbers create fundamentally different feature families.
+
+  Footer: Team name, "Q-volution Hackathon 2026 | Quandela Challenge", nav links, credits.
+
+  Technical requirements:
+  - Single HTML file, Tailwind via CDN, no build tools
+  - Smooth scroll behavior for anchor links
+  - Scroll-triggered fade-in animations (CSS only or minimal vanilla JS, no libraries)
+  - Fully responsive (mobile + desktop)
+  - Use Inter or Space Grotesk font from Google Fonts
+  - No placeholder images — use CSS shapes, gradients, and SVG for all visuals
+  - The pipeline diagram must be built in HTML/CSS, not an image
+  - Use subtle glassmorphism effects on cards (backdrop-blur, semi-transparent backgrounds)
