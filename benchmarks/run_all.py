@@ -6,22 +6,26 @@
 ╚══════════════════════════════════════════════════════════════╝
 
 Benchmarked models:
-    1. QUANTECH (ours)       — Photonic QRC + ClassicalHead
-    2. Classical LSTM        — 2-layer LSTM on latent sequences
-    3. Quantum LSTM          — VQC-enhanced LSTM (simulated)
-    4. Random Forest         — Multi-output ensemble trees
-    5. Ridge Regression      — L2-regularised linear model
-    6. Gradient Boosting     — Per-output boosted trees
-    7. SVR (RBF)             — Kernel SVM per output
-    8. sklearn MLP           — Simple feed-forward NN
+     1. QORC + Ridge (ours)  — Photonic QRC + Ridge readout (primary)
+     2. QUANTECH MLP (ours)  — Photonic QRC + ClassicalHead MLP
+     3. Classical LSTM       — 2-layer LSTM on latent sequences
+     4. Quantum LSTM         — VQC-enhanced LSTM (simulated)
+     5. Random Forest        — Multi-output ensemble trees
+     6. Ridge Regression     — L2-regularised linear model (no quantum)
+     7. Gradient Boosting    — Per-output boosted trees
+     8. SVR (RBF)            — Kernel SVM per output
+     9. sklearn MLP          — Simple feed-forward NN
+    10. VQC (Trained)        — Variational Quantum Circuit (MerLin)
+    11. Simple PML + Ridge   — Single unitary (no sandwich) + Ridge
 
 All models predict next latent code (20-dim) from temporal context,
 then are evaluated at both latent and surface (224-dim price) levels.
 
 Usage:
-    cd Quandela_Quantech
+    cd hackathon
     python benchmarks/run_all.py
-    python benchmarks/run_all.py --skip-qlstm       # skip slow Quantum LSTM
+    python benchmarks/run_all.py --skip-slow         # skip VQC + Quantum LSTM
+    python benchmarks/run_all.py --skip-qlstm        # skip only Quantum LSTM
 """
 
 import argparse
@@ -51,6 +55,9 @@ from classical_lstm import train_classical_lstm
 from quantum_lstm import train_quantum_lstm
 from random_forest import train_random_forest
 from classical_ml import train_all_classical_ml
+from qorc_ridge import train_qorc_ridge
+from vqc_model import train_vqc
+from simple_pml_ridge import run as run_simple_pml
 
 
 # ─────────────────────────────────────────────────────────────
@@ -86,6 +93,8 @@ def build_row(name, raw, metrics, extra_info=""):
 
 def main(args):
     start_time = time.perf_counter()
+    n_models = 11
+    skip_slow = getattr(args, 'skip_slow', False)
 
     banner("Loading Shared Benchmark Data")
     data = BenchmarkData()
@@ -95,23 +104,44 @@ def main(args):
     rows = []
 
     # ──────────────────────────────────────────────────────────
-    # 1. QUANTECH (our model)
+    # 1. QORC + Ridge (our primary model)
     # ──────────────────────────────────────────────────────────
-    banner("1 / 8  —  QUANTECH (Hybrid Photonic QRC)")
+    banner(f"1 / {n_models}  —  QORC + Ridge (Primary Model)")
+    if data.Q_train is not None and data.Q_val is not None:
+        raw = train_qorc_ridge(
+            data.X_train, data.y_train,
+            data.X_val, data.y_val,
+            data.Q_train, data.Q_val,
+            alpha=1.0,
+        )
+        met = compute_latent_and_surface_metrics(
+            data.y_val, raw["predictions"], ae_decoder
+        )
+        rows.append(build_row(
+            "★ QORC + Ridge (ours)", raw, met,
+            "Photonic QRC + Ridge readout"
+        ))
+    else:
+        print("  [SKIP] Quantum features not found — cannot evaluate QORC + Ridge.")
+
+    # ──────────────────────────────────────────────────────────
+    # 2. QUANTECH MLP (our existing model)
+    # ──────────────────────────────────────────────────────────
+    banner(f"2 / {n_models}  —  QUANTECH MLP (Hybrid Photonic QRC)")
     raw = evaluate_our_model(data)
     if raw is not None:
         met = compute_latent_and_surface_metrics(
             data.y_val, raw["predictions"], ae_decoder
         )
         rows.append(build_row(
-            "* QUANTECH (ours)", raw, met,
+            "QUANTECH MLP (ours)", raw, met,
             "Photonic QRC + MLP head"
         ))
 
     # ──────────────────────────────────────────────────────────
-    # 2. Classical LSTM
+    # 3. Classical LSTM
     # ──────────────────────────────────────────────────────────
-    banner("2 / 8  —  Classical LSTM")
+    banner(f"3 / {n_models}  —  Classical LSTM")
     raw = train_classical_lstm(
         data.X_train_seq, data.y_train,
         data.X_val_seq, data.y_val,
@@ -123,10 +153,10 @@ def main(args):
     rows.append(build_row("Classical LSTM", raw, met, "2×LSTM(64) + FC"))
 
     # ──────────────────────────────────────────────────────────
-    # 3. Quantum LSTM
+    # 4. Quantum LSTM
     # ──────────────────────────────────────────────────────────
-    if not args.skip_qlstm:
-        banner("3 / 8  —  Quantum LSTM (VQC-enhanced)")
+    if not args.skip_qlstm and not skip_slow:
+        banner(f"4 / {n_models}  —  Quantum LSTM (VQC-enhanced)")
         raw = train_quantum_lstm(
             data.X_train_seq, data.y_train,
             data.X_val_seq, data.y_val,
@@ -140,12 +170,12 @@ def main(args):
             "VQC(4q, 2L) + LSTM cell"
         ))
     else:
-        print("\n  [SKIPPED] Quantum LSTM (use --no-skip-qlstm to enable)")
+        print(f"\n  [SKIPPED] Quantum LSTM (slow)")
 
     # ──────────────────────────────────────────────────────────
-    # 4. Random Forest
+    # 5. Random Forest
     # ──────────────────────────────────────────────────────────
-    banner("4 / 8  —  Random Forest")
+    banner(f"5 / {n_models}  —  Random Forest")
     raw = train_random_forest(
         data.X_train, data.y_train,
         data.X_val, data.y_val,
@@ -157,9 +187,9 @@ def main(args):
     rows.append(build_row("Random Forest", raw, met, "300 trees, depth 20"))
 
     # ──────────────────────────────────────────────────────────
-    # 5-8. Classical ML
+    # 6-9. Classical ML (Ridge, GB, SVR, sklearn MLP)
     # ──────────────────────────────────────────────────────────
-    banner("5–8 / 8  —  Classical ML Baselines")
+    banner(f"6–9 / {n_models}  —  Classical ML Baselines")
     ml_results = train_all_classical_ml(
         data.X_train, data.y_train,
         data.X_val, data.y_val,
@@ -169,6 +199,46 @@ def main(args):
             data.y_val, raw["predictions"], ae_decoder
         )
         rows.append(build_row(name, raw, met))
+
+    # ──────────────────────────────────────────────────────────
+    # 10. VQC (Trained quantum circuit)
+    # ──────────────────────────────────────────────────────────
+    if not skip_slow:
+        banner(f"10 / {n_models}  —  VQC (Parametrized Quantum Circuit)")
+        raw = train_vqc(
+            data.X_train, data.y_train,
+            data.X_val, data.y_val,
+            n_modes=6, n_photons=2,
+            epochs=50, lr=0.01,
+            batch_size=32,
+            device="cpu",
+        )
+        met = compute_latent_and_surface_metrics(
+            data.y_val, raw["predictions"], ae_decoder
+        )
+        rows.append(build_row(
+            "VQC (Trained)", raw, met,
+            "MerLin 6m/2p, trainable PS"
+        ))
+    else:
+        print(f"\n  [SKIPPED] VQC (slow)")
+
+    # ──────────────────────────────────────────────────────────
+    # 11. Simple PML + Ridge (no sandwich)
+    # ──────────────────────────────────────────────────────────
+    banner(f"11 / {n_models}  —  Simple PML + Ridge (no sandwich)")
+    raw = run_simple_pml(
+        data.latent_codes, data.prices_norm,
+        data.ae_model, data.preprocessor,
+        data.cfg, data.device,
+    )
+    met = compute_latent_and_surface_metrics(
+        data.y_val, raw["predictions"], ae_decoder
+    )
+    rows.append(build_row(
+        "Simple PML + Ridge", raw, met,
+        "Single unitary (no sandwich) + Ridge"
+    ))
 
     # ──────────────────────────────────────────────────────────
     # Sort by latent MSE (ascending = best first)
@@ -258,10 +328,14 @@ def _write_markdown_report(path, rows, data, total_time):
         "Inference Cost | Scalability | Key Trade-off |",
         "|-------|------|----------|---------------|"
         "----------------|-------------|---------------|",
-        "| **★ QUANTECH** | Hybrid Quantum | Photonic QPU + CPU | "
-        "Medium (AE + QORC sim) | Low (pre-computed features) | "
+        "| **★ QORC + Ridge (ours)** | Hybrid Quantum | Photonic QPU + CPU | "
+        "Low (pre-computed features + Ridge) | **Very Low** (Ridge predict) | "
         "Excellent (photonic hardware scales linearly) | "
-        "Best accuracy; requires photonic simulator / QPU access |",
+        "Best accuracy + simplicity; textbook reservoir computing readout |",
+        "| **QUANTECH MLP** | Hybrid Quantum | Photonic QPU + CPU | "
+        "Medium (AE + QORC sim + MLP training) | Low (pre-computed features) | "
+        "Excellent (photonic hardware scales linearly) | "
+        "More params → overfits on small data |",
         "| Classical LSTM | Deep Learning | CPU / GPU | "
         "Low–Medium | Low | Good (GPU parallelism) | "
         "Strong sequential modelling; no quantum advantage |",
@@ -328,6 +402,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--skip-qlstm", action="store_true",
         help="Skip the (slow) Quantum LSTM benchmark",
+    )
+    parser.add_argument(
+        "--skip-slow", action="store_true",
+        help="Skip slow benchmarks (VQC + Quantum LSTM)",
     )
     args = parser.parse_args()
     main(args)
