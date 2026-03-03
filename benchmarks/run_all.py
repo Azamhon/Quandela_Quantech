@@ -87,6 +87,104 @@ def build_row(name, raw, metrics, extra_info=""):
     return row
 
 
+def _predict_test(model_type, raw, data):
+    """
+    Use a trained model to predict on held-out test data.
+
+    Returns np.ndarray of shape (n_test, latent_dim) or None on failure.
+    No test data is used for training — only for forward prediction.
+    """
+    import torch as _torch
+
+    try:
+        model = raw.get("model")
+        if model is None:
+            return None
+
+        if model_type == "qorc_ridge":
+            # Ridge on concatenated quantum + classical features
+            if data.Q_test is None:
+                return None
+            X_full = np.hstack([data.Q_test, data.X_test])
+            return model.predict(X_full)
+
+        elif model_type == "quantech_mlp":
+            # ClassicalHead takes (Xq, Xc) as two tensors
+            if data.Q_test is None:
+                return None
+            Xq = _torch.tensor(data.Q_test, dtype=_torch.float32)
+            Xc = _torch.tensor(data.X_test, dtype=_torch.float32)
+            with _torch.no_grad():
+                preds = model(Xq, Xc).cpu().numpy()
+            return preds
+
+        elif model_type in ("classical_lstm", "quantum_lstm"):
+            # 3-D sequence input  (batch, seq_len, latent_dim)
+            x = _torch.tensor(data.X_test_seq, dtype=_torch.float32)
+            with _torch.no_grad():
+                preds = model(x).cpu().numpy()
+            return preds
+
+        elif model_type in ("random_forest", "ridge", "gradient_boosting",
+                            "svr", "sklearn_mlp"):
+            # Flat sklearn estimator
+            return model.predict(data.X_test)
+
+        elif model_type == "vqc":
+            # Flat 2D tensor
+            x = _torch.tensor(data.X_test, dtype=_torch.float32)
+            with _torch.no_grad():
+                preds = model(x).cpu().numpy()
+            return preds
+
+        elif model_type == "simple_pml_ridge":
+            # Need layer + normalization stats from training
+            layer = raw.get("layer")
+            q_mean = raw.get("q_mean")
+            q_std = raw.get("q_std")
+            if layer is None or q_mean is None or q_std is None:
+                return None
+            x_t = _torch.tensor(data.X_test, dtype=_torch.float32)
+            parts = []
+            for start in range(0, len(x_t), 64):
+                batch = x_t[start:start + 64]
+                feats = layer(batch).cpu().numpy()
+                parts.append(feats)
+            Q_test = np.concatenate(parts, axis=0)
+            Q_test_n = (Q_test - q_mean) / q_std
+            X_full = np.hstack([Q_test_n, data.X_test])
+            return model.predict(X_full)
+
+        else:
+            return None
+
+    except Exception as e:
+        print(f"    [WARN] Test prediction failed: {e}")
+        return None
+
+
+def _add_test_metrics(row, test_preds, data, ae_decoder):
+    """Compute test metrics and add them to the row dict."""
+    if test_preds is None:
+        row["test_latent_MSE"]  = None
+        row["test_latent_RMSE"] = None
+        row["test_surface_MSE"] = None
+        row["test_surface_RMSE"] = None
+        row["test_R2"]          = None
+        return
+    met = compute_latent_and_surface_metrics(
+        data.y_test, test_preds, ae_decoder
+    )
+    row["test_latent_MSE"]  = met.get("latent_MSE", None)
+    row["test_latent_RMSE"] = met.get("latent_RMSE", None)
+    row["test_surface_MSE"] = met.get("surface_MSE", None)
+    row["test_surface_RMSE"] = met.get("surface_RMSE", None)
+    row["test_R2"]          = met.get("latent_R²", met.get("latent_R2", None))
+    print(f"    TEST  — latent MSE: {row['test_latent_MSE']:.6f}  |  "
+          f"surface RMSE: {row['test_surface_RMSE']:.6f}  |  "
+          f"R²: {row['test_R2']:.4f}")
+
+
 # ─────────────────────────────────────────────────────────────
 # Main
 # ─────────────────────────────────────────────────────────────
@@ -99,6 +197,14 @@ def main(args):
     banner("Loading Shared Benchmark Data")
     data = BenchmarkData()
     data.summary()
+
+    # ── Load held-out test data (6 actual future days) ───────
+    data.load_test_data()
+    has_test = hasattr(data, 'n_test') and data.n_test > 0
+    if has_test:
+        print(f"  Test evaluation enabled ({data.n_test} days)")
+    else:
+        print("  [WARN] No test data — reporting validation metrics only")
 
     ae_decoder = data.ae_model.decode
     rows = []
@@ -117,10 +223,14 @@ def main(args):
         met = compute_latent_and_surface_metrics(
             data.y_val, raw["predictions"], ae_decoder
         )
-        rows.append(build_row(
+        r = build_row(
             "★ QORC + Ridge (ours)", raw, met,
             "Photonic QRC + Ridge readout"
-        ))
+        )
+        if has_test:
+            test_preds = _predict_test("qorc_ridge", raw, data)
+            _add_test_metrics(r, test_preds, data, ae_decoder)
+        rows.append(r)
     else:
         print("  [SKIP] Quantum features not found — cannot evaluate QORC + Ridge.")
 
@@ -133,10 +243,14 @@ def main(args):
         met = compute_latent_and_surface_metrics(
             data.y_val, raw["predictions"], ae_decoder
         )
-        rows.append(build_row(
+        r = build_row(
             "QUANTECH MLP (ours)", raw, met,
             "Photonic QRC + MLP head"
-        ))
+        )
+        if has_test:
+            test_preds = _predict_test("quantech_mlp", raw, data)
+            _add_test_metrics(r, test_preds, data, ae_decoder)
+        rows.append(r)
 
     # ──────────────────────────────────────────────────────────
     # 3. Classical LSTM
@@ -150,7 +264,11 @@ def main(args):
     met = compute_latent_and_surface_metrics(
         data.y_val, raw["predictions"], ae_decoder
     )
-    rows.append(build_row("Classical LSTM", raw, met, "2×LSTM(64) + FC"))
+    r = build_row("Classical LSTM", raw, met, "2×LSTM(64) + FC")
+    if has_test:
+        test_preds = _predict_test("classical_lstm", raw, data)
+        _add_test_metrics(r, test_preds, data, ae_decoder)
+    rows.append(r)
 
     # ──────────────────────────────────────────────────────────
     # 4. Quantum LSTM
@@ -165,10 +283,14 @@ def main(args):
         met = compute_latent_and_surface_metrics(
             data.y_val, raw["predictions"], ae_decoder
         )
-        rows.append(build_row(
+        r = build_row(
             "Quantum LSTM", raw, met,
             "VQC(4q, 2L) + LSTM cell"
-        ))
+        )
+        if has_test:
+            test_preds = _predict_test("quantum_lstm", raw, data)
+            _add_test_metrics(r, test_preds, data, ae_decoder)
+        rows.append(r)
     else:
         print(f"\n  [SKIPPED] Quantum LSTM (slow)")
 
@@ -184,7 +306,11 @@ def main(args):
     met = compute_latent_and_surface_metrics(
         data.y_val, raw["predictions"], ae_decoder
     )
-    rows.append(build_row("Random Forest", raw, met, "300 trees, depth 20"))
+    r = build_row("Random Forest", raw, met, "300 trees, depth 20")
+    if has_test:
+        test_preds = _predict_test("random_forest", raw, data)
+        _add_test_metrics(r, test_preds, data, ae_decoder)
+    rows.append(r)
 
     # ──────────────────────────────────────────────────────────
     # 6-9. Classical ML (Ridge, GB, SVR, sklearn MLP)
@@ -194,11 +320,22 @@ def main(args):
         data.X_train, data.y_train,
         data.X_val, data.y_val,
     )
+    _ml_type_map = {
+        "Ridge Regression": "ridge",
+        "Gradient Boosting": "gradient_boosting",
+        "SVR (RBF)": "svr",
+        "sklearn MLP": "sklearn_mlp",
+    }
     for name, raw in ml_results.items():
         met = compute_latent_and_surface_metrics(
             data.y_val, raw["predictions"], ae_decoder
         )
-        rows.append(build_row(name, raw, met))
+        r = build_row(name, raw, met)
+        if has_test:
+            mtype = _ml_type_map.get(name, "ridge")
+            test_preds = _predict_test(mtype, raw, data)
+            _add_test_metrics(r, test_preds, data, ae_decoder)
+        rows.append(r)
 
     # ──────────────────────────────────────────────────────────
     # 10. VQC (Trained quantum circuit)
@@ -216,10 +353,14 @@ def main(args):
         met = compute_latent_and_surface_metrics(
             data.y_val, raw["predictions"], ae_decoder
         )
-        rows.append(build_row(
+        r = build_row(
             "VQC (Trained)", raw, met,
             "MerLin 6m/2p, trainable PS"
-        ))
+        )
+        if has_test:
+            test_preds = _predict_test("vqc", raw, data)
+            _add_test_metrics(r, test_preds, data, ae_decoder)
+        rows.append(r)
     else:
         print(f"\n  [SKIPPED] VQC (slow)")
 
@@ -235,15 +376,22 @@ def main(args):
     met = compute_latent_and_surface_metrics(
         data.y_val, raw["predictions"], ae_decoder
     )
-    rows.append(build_row(
+    r = build_row(
         "Simple PML + Ridge", raw, met,
         "Single unitary (no sandwich) + Ridge"
-    ))
+    )
+    if has_test:
+        test_preds = _predict_test("simple_pml_ridge", raw, data)
+        _add_test_metrics(r, test_preds, data, ae_decoder)
+    rows.append(r)
 
     # ──────────────────────────────────────────────────────────
-    # Sort by latent MSE (ascending = best first)
+    # Sort by test latent MSE if available, else val latent MSE
     # ──────────────────────────────────────────────────────────
-    rows.sort(key=lambda r: r["latent_MSE"])
+    if has_test:
+        rows.sort(key=lambda r: r.get("test_latent_MSE") or float("inf"))
+    else:
+        rows.sort(key=lambda r: r["latent_MSE"])
 
     # ──────────────────────────────────────────────────────────
     # Console output
@@ -262,6 +410,8 @@ def main(args):
     fieldnames = [
         "name", "latent_MSE", "latent_RMSE", "latent_MAE",
         "surface_MSE", "surface_RMSE", "R2",
+        "test_latent_MSE", "test_latent_RMSE",
+        "test_surface_MSE", "test_surface_RMSE", "test_R2",
         "n_params", "train_time", "inference_ms",
     ]
     with open(csv_path, "w", newline="") as f:
@@ -274,7 +424,7 @@ def main(args):
     # Save Markdown report
     # ──────────────────────────────────────────────────────────
     md_path = os.path.join(out_dir, "BENCHMARK_RESULTS.md")
-    _write_markdown_report(md_path, rows, data, total_time)
+    _write_markdown_report(md_path, rows, data, total_time, has_test)
     print(f"  Report saved → {md_path}")
 
 
@@ -282,19 +432,29 @@ def main(args):
 # Markdown report generator
 # ─────────────────────────────────────────────────────────────
 
-def _write_markdown_report(path, rows, data, total_time):
+def _write_markdown_report(path, rows, data, total_time, has_test=False):
     """Generate a rich Markdown comparison report."""
 
     best = rows[0]     # sorted ascending by latent MSE
     ts = datetime.now().strftime("%Y-%m-%d %H:%M")
 
+    # Choose the metric label depending on whether test data exists
+    if has_test:
+        best_metric_label = "test latent MSE"
+        best_mse = best.get('test_latent_MSE', best['latent_MSE'])
+        best_srmse = best.get('test_surface_RMSE', best['surface_RMSE'])
+    else:
+        best_metric_label = "latent MSE"
+        best_mse = best['latent_MSE']
+        best_srmse = best['surface_RMSE']
+
     lines = [
         "# 📊 QUANTECH Benchmark Report",
         f"*Generated: {ts}*\n",
         "## Executive Summary\n",
-        f"**Best model: {best['name']}** with latent MSE = "
-        f"**{best['latent_MSE']:.6f}** and surface RMSE = "
-        f"**{best['surface_RMSE']:.6f}**.\n",
+        f"**Best model: {best['name']}** with {best_metric_label} = "
+        f"**{best_mse:.6f}** and surface RMSE = "
+        f"**{best_srmse:.6f}**.\n",
         "## Dataset\n",
         f"| Property | Value |",
         f"|----------|-------|",
@@ -303,23 +463,55 @@ def _write_markdown_report(path, rows, data, total_time):
         f"| Latent dim | {data.latent_dim} |",
         f"| Window size | {data.window_size} |",
         f"| Train / Val samples | {data.n_train} / {data.val_split} |",
-        "",
-        "## Performance Comparison\n",
+    ]
+    if has_test:
+        lines.append(f"| Test samples (held-out) | {data.n_test} |")
+    lines.append("")
+
+    # ── Validation table ──
+    lines += [
+        "## Validation Performance\n",
         "| Rank | Model | Latent MSE | Latent RMSE | Surface MSE | "
-        "Surface RMSE | R2 | Params | Train (s) | Inference (ms) |",
+        "Surface RMSE | R² | Params | Train (s) | Inference (ms) |",
         "|------|-------|-----------|------------|------------|"
         "-------------|-----|--------|-----------|----------------|",
     ]
 
     for i, r in enumerate(rows, 1):
-        marker = " [BEST]" if i == 1 else ""
         lines.append(
-            f"| {i} | **{r['name']}**{marker} | "
+            f"| {i} | **{r['name']}** | "
             f"{r['latent_MSE']:.6f} | {r['latent_RMSE']:.6f} | "
             f"{r['surface_MSE']:.6f} | {r['surface_RMSE']:.6f} | "
             f"{r['R2']:.4f} | {r['n_params']} | "
             f"{r['train_time']:.1f} | {r['inference_ms']:.3f} |"
         )
+
+    # ── Test table (if available) ──
+    if has_test:
+        lines += [
+            "",
+            "## Test Performance (Held-Out Ground Truth — 6 Future Days)\n",
+            "These metrics evaluate predictions against actual future swaption "
+            "prices from `test.xlsx`. No test data was used during training.\n",
+            "| Rank | Model | Test Latent MSE | Test Latent RMSE | "
+            "Test Surface MSE | Test Surface RMSE | Test R² |",
+            "|------|-------|----------------|-----------------|"
+            "-----------------|-------------------|---------|",
+        ]
+        for i, r in enumerate(rows, 1):
+            t_mse = r.get("test_latent_MSE")
+            if t_mse is not None:
+                marker = " **[BEST]**" if i == 1 else ""
+                lines.append(
+                    f"| {i} | **{r['name']}**{marker} | "
+                    f"{r['test_latent_MSE']:.6f} | {r['test_latent_RMSE']:.6f} | "
+                    f"{r['test_surface_MSE']:.6f} | {r['test_surface_RMSE']:.6f} | "
+                    f"{r['test_R2']:.4f} |"
+                )
+            else:
+                lines.append(
+                    f"| {i} | **{r['name']}** | N/A | N/A | N/A | N/A | N/A |"
+                )
 
     lines += [
         "",

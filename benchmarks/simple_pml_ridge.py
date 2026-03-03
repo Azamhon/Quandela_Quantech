@@ -250,6 +250,8 @@ def train_simple_pml_ridge(X_train, y_train, X_val, y_val,
     return {
         "model": model,
         "layer": layer,
+        "q_mean": q_mean,
+        "q_std": q_std,
         "predictions": predictions,
         "val_loss": val_loss,
         "train_time": train_time,

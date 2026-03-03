@@ -4,6 +4,8 @@ Shared data loading and preparation for all benchmarks.
 Loads the pre-trained autoencoder, preprocesses raw data, creates
 train/val splits identical to the main training pipeline so every
 benchmark sees exactly the same samples.
+
+Optionally loads test.xlsx as held-out ground truth for final evaluation.
 """
 
 import os
@@ -161,6 +163,138 @@ class BenchmarkData:
         print(f"  AE latent dim    : {self.latent_dim}")
         print(f"  Window size      : {self.window_size}")
         print(f"  Train / Val      : {self.n_train} / {self.val_split}")
+        if hasattr(self, 'n_test') and self.n_test > 0:
+            print(f"  Test  samples    : {self.n_test}")
         print(f"  Input dim (flat) : {self.classical_dim}")
         print(f"  Target dim       : {self.latent_dim}")
         print("=" * 50)
+
+    # ── Test data (held-out ground truth) ────────────────────
+
+    def load_test_data(self, test_path=None):
+        """
+        Load test.xlsx as held-out ground truth for final evaluation.
+
+        The test data is NEVER used for training or fitting — only for
+        comparing model predictions against actual future prices.
+
+        Walk-forward evaluation: for each test day, the context window
+        uses only data that would have been observed at that point in time
+        (training data + any preceding test days).
+
+        Sets: X_test, y_test, X_test_seq, Q_test, n_test,
+              test_prices_raw, test_prices_norm, test_latent
+        """
+        if test_path is None:
+            test_path = os.path.join(PROJECT_ROOT, "DATASETS/test.xlsx")
+
+        if not os.path.exists(test_path):
+            print(f"  [WARN] Test file not found: {test_path}")
+            self.n_test = 0
+            return
+
+        print(f"\n  Loading test data: {test_path}")
+
+        # Load raw test prices (same format as train)
+        _, _, self.test_prices_raw = load_train_data(test_path)
+        n_test_rows = self.test_prices_raw.shape[0]
+        print(f"  Test rows          : {n_test_rows}")
+
+        # Transform with FITTED preprocessor — NO re-fitting (no data leakage)
+        self.test_prices_norm = self.preprocessor.transform(self.test_prices_raw)
+        print(f"  Test norm range    : [{self.test_prices_norm.min():.4f}, "
+              f"{self.test_prices_norm.max():.4f}]")
+
+        # Encode through frozen AE (same weights used for training data)
+        with torch.no_grad():
+            x = torch.tensor(self.test_prices_norm, dtype=torch.float32)
+            self.test_latent = self.ae_model.encode(x).numpy()
+        print(f"  Test latent shape  : {self.test_latent.shape}")
+
+        # ── Walk-forward windows ─────────────────────────────
+        # Concatenate train + test latent codes.  Windows spanning
+        # the boundary use the last training days as context to predict
+        # the first test day, then shift forward using actual observed
+        # test values (standard walk-forward — no leakage).
+        all_latent = np.concatenate([self.latent_codes, self.test_latent], axis=0)
+
+        X_all, y_all, _ = make_windows(all_latent, window_size=self.window_size)
+
+        # The last n_test_rows windows are the test targets
+        self.X_test = X_all[-n_test_rows:]
+        self.y_test = y_all[-n_test_rows:]
+
+        # Sequence format for LSTMs
+        self.X_test_seq = self.X_test[
+            :, :self.window_size * self.latent_dim
+        ].reshape(-1, self.window_size, self.latent_dim)
+
+        self.n_test = n_test_rows
+
+        # ── Quantum features for test windows ────────────────
+        self.Q_test = None
+        if self.Q_train is not None:
+            self._compute_test_quantum_features()
+
+        print(f"  Test windows       : {self.n_test}")
+        if self.Q_test is not None:
+            print(f"  Test quantum feats : {self.Q_test.shape}")
+
+    def _compute_test_quantum_features(self):
+        """
+        Compute quantum features for the test windows using the same
+        fixed EnsembleQORC architecture.  The reservoir weights are
+        random-but-deterministic (seeded), so we get identical circuits
+        as during training.
+        """
+        from src.quantum_reservoir import (
+            EnsembleQORC, extract_quantum_features, QuantumFeatureNormalizer,
+        )
+
+        configs = self.cfg.get("quantum_reservoir", {}).get("ensemble", [
+            {"n_modes": 12, "n_photons": 3, "seed": 42},
+            {"n_modes": 10, "n_photons": 4, "seed": 43},
+            {"n_modes": 16, "n_photons": 2, "seed": 44},
+        ])
+        use_fock = self.cfg.get("quantum_reservoir", {}).get("use_fock", True)
+
+        ensemble = EnsembleQORC(
+            input_dim=self.classical_dim,
+            configs=configs,
+            use_fock=use_fock,
+            device="cpu",
+        )
+        ensemble.eval()
+
+        # Extract raw quantum features for test windows
+        X_test_t = torch.tensor(self.X_test, dtype=torch.float32)
+        Q_test_raw = extract_quantum_features(ensemble, X_test_t, batch_size=64)
+
+        # Normalise using statistics from training quantum features
+        # (loaded from quantum_features.npy — the same features used for Q_train/Q_val)
+        qf_path = os.path.join(
+            PROJECT_ROOT, self.cfg["data"]["output_dir"], "quantum_features.npy"
+        )
+        Q_all_train = np.load(qf_path)  # all training quantum features
+
+        # Also recompute train features to get the raw (un-normalised) versions
+        # for a consistent normalization.  Since the quantum reservoir is fixed,
+        # we just match the normalisation already applied to Q_train/Q_val.
+        # The saved quantum_features.npy may or may not be normalised, so we
+        # check by comparing shapes/stats.
+
+        # Simpler approach: compute quantum features for a few training windows
+        # to recover the normalizer parameters.  Actually, since the reservoir
+        # is deterministic, let's just compute features for the full train set
+        # and normalize test with the same stats.
+        X_train_all_t = torch.tensor(
+            np.concatenate([self.X_train, self.X_val], axis=0),
+            dtype=torch.float32,
+        )
+        Q_train_raw = extract_quantum_features(ensemble, X_train_all_t, batch_size=64)
+
+        normalizer = QuantumFeatureNormalizer()
+        Q_train_normed = normalizer.fit_transform(Q_train_raw)
+        Q_test_normed = normalizer.transform(Q_test_raw)
+
+        self.Q_test = Q_test_normed
