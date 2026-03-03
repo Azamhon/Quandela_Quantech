@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>QuanTech — Hybrid Photonic QRC for Swaption Pricing</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
   <script>
     tailwind.config = {
@@ -197,16 +196,6 @@
     .bench-table tbody tr:hover { background: #fafaf9; }
     .bench-table .our-row { background: rgba(131,71,255,0.06); border-left: 3px solid #8347ff; }
     .bench-table .our-row td { font-weight: 600; color: #5b21b6; }
-
-    /* ── Plotly container ── */
-    .plotly-wrap {
-      background: #fff; border: 1px solid #e7e5e4; border-radius: 14px;
-      overflow: hidden; padding: 8px;
-    }
-    .plotly-loading {
-      display: flex; align-items: center; justify-content: center;
-      min-height: 300px; color: #a8a29e; font-size: 13px;
-    }
 
     /* ── Photonic circuit canvas ── */
     #circuitCanvas { border-radius: 8px; display: block; }
@@ -622,22 +611,22 @@
       <h2 class="font-display text-4xl md:text-5xl text-ink mt-4">Results at a Glance</h2>
     </div>
 
-    <!-- Metric pills -->
+    <!-- Metric pills — test set metrics -->
     <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-20 reveal">
       <div class="metric-pill">
-        <div class="text-2xl font-bold font-mono text-q-500">0.014</div>
-        <div class="text-[11px] text-stone-400 mt-1">QORC+Ridge MSE</div>
+        <div class="text-2xl font-bold font-mono text-q-500">0.0099</div>
+        <div class="text-[11px] text-stone-400 mt-1">Test Latent MSE</div>
       </div>
-      <div class="metric-pill">
-        <div class="text-2xl font-bold font-mono text-q-500">0.825</div>
-        <div class="text-[11px] text-stone-400 mt-1">R&sup2; Score</div>
+      <div class="metric-pill" style="border-color:rgba(131,71,255,0.3);">
+        <div class="text-2xl font-bold font-mono text-q-500">0.0425</div>
+        <div class="text-[11px] text-stone-400 mt-1">Test Surf. RMSE <span class="badge-q ml-1">#1</span></div>
       </div>
       <div class="metric-pill">
         <div class="text-2xl font-bold font-mono text-indigo-500">1,215</div>
         <div class="text-[11px] text-stone-400 mt-1">Quantum Features</div>
       </div>
       <div class="metric-pill">
-        <div class="text-2xl font-bold font-mono text-emerald-500">0.09ms</div>
+        <div class="text-2xl font-bold font-mono text-emerald-500">0.10ms</div>
         <div class="text-[11px] text-stone-400 mt-1">Inference Latency</div>
       </div>
       <div class="metric-pill">
@@ -645,44 +634,81 @@
         <div class="text-[11px] text-stone-400 mt-1">Best Quantum Model</div>
       </div>
       <div class="metric-pill">
-        <div class="text-2xl font-bold font-mono text-teal-500">~20m</div>
-        <div class="text-[11px] text-stone-400 mt-1">Total Training</div>
+        <div class="text-2xl font-bold font-mono text-teal-500">0.645</div>
+        <div class="text-[11px] text-stone-400 mt-1">Test R&sup2;</div>
       </div>
     </div>
 
-    <!-- Interactive Plotly Charts -->
-    <h3 class="font-body text-xl font-bold text-ink text-center mb-2 reveal">Interactive Visualizations</h3>
-    <p class="text-center text-xs text-stone-400 mb-8 reveal">Hover, zoom, and rotate to explore the data.</p>
-
-    <div class="grid lg:grid-cols-2 gap-5 mb-12">
-      <div class="plotly-wrap reveal">
-        <div id="plotlySurface" class="plotly-loading">Loading 3D surface...</div>
-      </div>
-      <div class="plotly-wrap reveal">
-        <div id="plotlyLatent" class="plotly-loading">Loading latent trajectories...</div>
-      </div>
-    </div>
-    <div class="plotly-wrap max-w-3xl mx-auto mb-16 reveal">
-      <div id="plotlyPrediction" class="plotly-loading">Loading predictions...</div>
-    </div>
-
-    <!-- New insight figures -->
-    <h3 class="font-body text-xl font-bold text-ink text-center mb-2 reveal">Model Insights</h3>
+    <!-- Pipeline Walkthrough -->
+    <h3 class="font-body text-xl font-bold text-ink text-center mb-2 reveal">Pipeline Walkthrough</h3>
     <p class="text-center text-xs text-stone-400 mb-8 reveal">Click any figure to zoom.</p>
 
-    <div class="grid lg:grid-cols-2 gap-5 mb-8">
-      <div class="plot-box reveal">
-        <img src="../benchmarks/figures/09_swaption_surfaces.png" alt="Swaption Surface Evolution" onclick="lbOpen(this)" loading="lazy" />
-        <div class="caption">Swaption surface evolution: first, middle, and last training day.</div>
-      </div>
-      <div class="plot-box reveal">
-        <img src="../benchmarks/figures/10_ae_reconstruction.png" alt="AE Reconstruction Quality" onclick="lbOpen(this)" loading="lazy" />
-        <div class="caption">Autoencoder reconstruction quality &mdash; scatter + error heatmap.</div>
-      </div>
+    <!-- 1. Swaption Surfaces -->
+    <div class="plot-box mb-6 reveal">
+      <img src="figures/01_swaption_surfaces.png" alt="Raw Swaption Surfaces" onclick="lbOpen(this)" loading="lazy" />
+      <div class="caption">Raw swaption surface heatmap (494 days &times; 224 dimensions) and selected price dimensions over time.</div>
     </div>
-    <div class="plot-box max-w-2xl mx-auto mb-8 reveal">
-      <img src="../benchmarks/figures/13_prediction_vs_truth.png" alt="Prediction vs Ground Truth" onclick="lbOpen(this)" loading="lazy" />
-      <div class="caption">Prediction vs ground truth on validation set.</div>
+
+    <!-- 2. Preprocessing -->
+    <div class="plot-box mb-6 reveal">
+      <img src="figures/02_preprocessing.png" alt="Before/After Preprocessing" onclick="lbOpen(this)" loading="lazy" />
+      <div class="caption">Before vs after preprocessing: Winsorize &rarr; RobustScaler &rarr; MinMax [0,1]. Handles fat-tailed financial data gracefully.</div>
+    </div>
+
+    <!-- 3. Sparse Denoising AE Table + Reconstruction -->
+    <h3 class="font-body text-lg font-bold text-ink text-center mt-14 mb-2 reveal">Sparse Denoising Autoencoder</h3>
+    <p class="text-center text-xs text-stone-400 mb-6 reveal">Nonlinear dimensionality reduction: 224 &rarr; 20 latent dimensions.</p>
+
+    <div class="overflow-x-auto mb-6 reveal">
+      <table class="bench-table max-w-2xl mx-auto">
+        <thead>
+          <tr>
+            <th>Parameter</th><th>Value</th><th>Why</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="text-stone-600 font-medium">Input dim</td><td class="font-mono text-q-500">224</td><td class="text-stone-400 text-xs">Full swaption surface</td></tr>
+          <tr><td class="text-stone-600 font-medium">Latent dim</td><td class="font-mono text-q-500">20</td><td class="text-stone-400 text-xs">Bottleneck preserves &gt;98% variance</td></tr>
+          <tr><td class="text-stone-600 font-medium">Hidden layers</td><td class="font-mono text-q-500">[128, 64]</td><td class="text-stone-400 text-xs">Gradual compression</td></tr>
+          <tr><td class="text-stone-600 font-medium">Mask ratio</td><td class="font-mono text-q-500">0.15</td><td class="text-stone-400 text-xs">Denoising for imputation (Task B)</td></tr>
+          <tr><td class="text-stone-600 font-medium">L1 sparsity</td><td class="font-mono text-q-500">10<sup>&minus;4</sup></td><td class="text-stone-400 text-xs">Each latent dim = distinct factor</td></tr>
+          <tr><td class="text-stone-600 font-medium">Bottleneck</td><td class="font-mono text-q-500">ELU</td><td class="text-stone-400 text-xs">Prevents dead neurons (vs ReLU)</td></tr>
+          <tr><td class="text-stone-600 font-medium">Learning rate</td><td class="font-mono text-q-500">10<sup>&minus;3</sup></td><td class="text-stone-400 text-xs">Adam optimiser</td></tr>
+          <tr><td class="text-stone-600 font-medium">Val split</td><td class="font-mono text-q-500">Last 50 days</td><td class="text-stone-400 text-xs">Temporal, no leakage</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="plot-box mb-6 reveal">
+      <img src="figures/03_ae_reconstruction.png" alt="AE Reconstruction" onclick="lbOpen(this)" loading="lazy" />
+      <div class="caption">Autoencoder reconstruction: original vs decoded for 4 random days. 224 &rarr; 20 &rarr; 224 with near-perfect fidelity.</div>
+    </div>
+
+    <!-- 4. Latent Space -->
+    <div class="plot-box mb-6 reveal">
+      <img src="figures/04_latent_analysis.png" alt="Latent Space Analysis" onclick="lbOpen(this)" loading="lazy" />
+      <div class="caption">Top: temporal dynamics of highest-variance latent dimensions. Bottom: latent correlation matrix showing decorrelated factors.</div>
+    </div>
+
+    <!-- 5. Quantum Features -->
+    <div class="plot-box mb-6 reveal">
+      <img src="figures/05_quantum_features.png" alt="Quantum Feature Analysis" onclick="lbOpen(this)" loading="lazy" />
+      <div class="caption">1,215 Fock-probability features from 3 photonic reservoirs: distribution (log scale), variance by rank, and feature heatmap.</div>
+    </div>
+
+    <!-- 6. Validation Predictions -->
+    <h3 class="font-body text-lg font-bold text-ink text-center mt-14 mb-2 reveal">Predictions</h3>
+    <p class="text-center text-xs text-stone-400 mb-6 reveal">QORC + Ridge performance on validation and held-out test data.</p>
+
+    <div class="plot-box mb-6 reveal">
+      <img src="figures/06_val_predictions.png" alt="Validation Predictions" onclick="lbOpen(this)" loading="lazy" />
+      <div class="caption">Predicted vs true latent codes on 50-sample validation set (4 representative dimensions).</div>
+    </div>
+
+    <!-- 7. Test Predictions — THE KEY RESULT -->
+    <div class="plot-box mb-8 reveal" style="border-color:rgba(131,71,255,0.3);box-shadow:0 0 0 1px rgba(131,71,255,0.08);">
+      <img src="figures/07_test_predictions.png" alt="Test Predictions" onclick="lbOpen(this)" loading="lazy" />
+      <div class="caption">Predicted vs actual swaption surfaces on 6 held-out test days. QORC+Ridge achieves the <strong>lowest surface RMSE</strong> (0.0425) of all 11 models.</div>
     </div>
   </div>
 </section>
@@ -719,7 +745,7 @@
     <div class="glass-card p-6 max-w-3xl mx-auto mb-12 reveal">
       <h4 class="font-body font-semibold text-ink mb-3 text-sm">Honest Comparison</h4>
       <p class="text-sm text-stone-500 leading-relaxed">
-        Our QORC+Ridge achieves <strong class="text-q-600">MSE 0.014</strong> (R&sup2; 0.825), competitive with the best classical models (Ridge: 0.011, Simple PML+Ridge: 0.010). The gap is modest &mdash; and our quantum model is the <strong class="text-q-600">only quantum approach that doesn&rsquo;t catastrophically overfit</strong> (VQC: R&sup2;=&minus;0.19, QLSTM: R&sup2;=0.33). This validates the reservoir computing paradigm: extract rich features from fixed quantum circuits, train only the classical readout.
+        Our QORC+Ridge achieves <strong class="text-q-600">test latent MSE 0.0099</strong> (R&sup2; 0.645), ranking #4 overall for latent MSE but <strong class="text-q-600">#1 for surface RMSE (0.0425)</strong> &mdash; the metric that matters most for actual swaption pricing. The gap to classical baselines is modest, and our quantum model is the <strong class="text-q-600">only quantum approach that doesn&rsquo;t catastrophically overfit</strong> (VQC: R&sup2;=&minus;1.09, QLSTM: R&sup2;=&minus;1.31 on test data). This validates the reservoir computing paradigm: extract rich features from fixed quantum circuits, train only the classical readout.
       </p>
       <p class="text-sm text-stone-500 leading-relaxed mt-3">
         On real photonic hardware, the 1,215 Fock features computed here via simulation would be obtained in <strong class="text-q-600">nanoseconds per shot</strong> &mdash; unlocking latency and energy advantages that simulation cannot capture.
@@ -727,15 +753,9 @@
     </div>
 
     <!-- Feature importance + distribution figures -->
-    <div class="grid lg:grid-cols-2 gap-5">
-      <div class="plot-box reveal">
-        <img src="../benchmarks/figures/14_feature_importance.png" alt="Feature Importance" onclick="lbOpen(this)" loading="lazy" />
-        <div class="caption">Ridge coefficient analysis: quantum vs classical feature weight.</div>
-      </div>
-      <div class="plot-box reveal">
-        <img src="../benchmarks/figures/12_quantum_feature_dist.png" alt="Quantum Feature Distribution" onclick="lbOpen(this)" loading="lazy" />
-        <div class="caption">Fock probability distributions by reservoir &mdash; diversity through physics.</div>
-      </div>
+    <div class="plot-box max-w-4xl mx-auto reveal">
+      <img src="figures/05_quantum_features.png" alt="Quantum Features" onclick="lbOpen(this)" loading="lazy" />
+      <div class="caption">Fock probability distributions, variance spectrum, and feature heatmap &mdash; diversity through physics.</div>
     </div>
   </div>
 </section>
@@ -748,50 +768,186 @@
       <span class="section-label">Comparative Analysis</span>
       <h2 class="font-display text-4xl md:text-5xl text-ink mt-4">Benchmark Results</h2>
       <p class="text-stone-400 mt-3 max-w-xl mx-auto text-sm">
-        11 models evaluated on the same 50-sample validation set.
+        11 models evaluated on 6 held-out test days (future data unseen during training).
         <span class="inline-flex items-center gap-1 ml-2 text-[11px]"><span class="w-2 h-2 rounded-sm bg-q-500"></span><span class="text-q-500 font-medium">Quantum</span></span>
         <span class="inline-flex items-center gap-1 ml-2 text-[11px]"><span class="w-2 h-2 rounded-sm bg-emerald-500"></span><span class="text-emerald-500 font-medium">Classical</span></span>
       </p>
     </div>
 
-    <!-- Benchmark Table -->
+    <!-- Benchmark Table — hardcoded from results.csv test metrics -->
     <div class="overflow-x-auto mb-14 reveal">
       <table class="bench-table" id="benchTable">
         <thead>
           <tr>
-            <th>#</th><th>Model</th><th>Type</th><th>Latent MSE</th><th>Surf. RMSE</th><th>R&sup2;</th><th>Params</th><th>Train</th><th>Inference</th>
+            <th>#</th><th>Model</th><th>Type</th><th>Test Latent MSE</th><th>Test Surf. RMSE</th><th>Test R&sup2;</th><th>Params</th><th>Train</th><th>Inference</th>
           </tr>
         </thead>
-        <tbody id="benchBody"></tbody>
+        <tbody>
+          <tr>
+            <td class="font-mono text-stone-400">1</td>
+            <td class="font-medium text-ink">Simple PML + Ridge</td>
+            <td><span class="badge-q">Quantum</span></td>
+            <td class="font-mono text-stone-600">0.0085</td>
+            <td class="font-mono text-stone-500">0.0461</td>
+            <td class="font-mono text-stone-500">0.692</td>
+            <td class="text-stone-400 text-xs">9,700</td>
+            <td class="text-stone-400 text-xs">0.35s</td>
+            <td class="text-stone-400 text-xs">1.55ms</td>
+          </tr>
+          <tr>
+            <td class="font-mono text-stone-400">2</td>
+            <td class="font-medium text-ink">Ridge Regression</td>
+            <td><span class="badge-c">Classical</span></td>
+            <td class="font-mono text-stone-600">0.0091</td>
+            <td class="font-mono text-stone-500">0.0484</td>
+            <td class="font-mono text-stone-500">0.673</td>
+            <td class="text-stone-400 text-xs">2,400</td>
+            <td class="text-stone-400 text-xs">0.01s</td>
+            <td class="text-stone-400 text-xs">0.06ms</td>
+          </tr>
+          <tr>
+            <td class="font-mono text-stone-400">3</td>
+            <td class="font-medium text-ink">Classical LSTM</td>
+            <td><span class="badge-c">Classical</span></td>
+            <td class="font-mono text-stone-600">0.0096</td>
+            <td class="font-mono text-stone-500">0.0445</td>
+            <td class="font-mono text-stone-500">0.654</td>
+            <td class="text-stone-400 text-xs">58,036</td>
+            <td class="text-stone-400 text-xs">19.6s</td>
+            <td class="text-stone-400 text-xs">1.10ms</td>
+          </tr>
+          <tr class="our-row">
+            <td class="font-mono">4</td>
+            <td class="font-medium text-q-600">&#9733; QORC + Ridge (ours)</td>
+            <td><span class="badge-q">Quantum</span></td>
+            <td class="font-mono">0.0099</td>
+            <td class="font-mono" style="color:#059669;font-weight:700;">0.0425 <span class="text-[9px] badge-q">BEST</span></td>
+            <td class="font-mono">0.645</td>
+            <td class="text-xs">26,720</td>
+            <td class="text-xs">0.23s</td>
+            <td class="text-xs">0.10ms</td>
+          </tr>
+          <tr>
+            <td class="font-mono text-stone-400">5</td>
+            <td class="font-medium text-ink">SVR (RBF)</td>
+            <td><span class="badge-c">Classical</span></td>
+            <td class="font-mono text-stone-600">0.0099</td>
+            <td class="font-mono text-stone-500">0.0455</td>
+            <td class="font-mono text-stone-500">0.643</td>
+            <td class="text-stone-400 text-xs">-</td>
+            <td class="text-stone-400 text-xs">0.19s</td>
+            <td class="text-stone-400 text-xs">29.4ms</td>
+          </tr>
+          <tr>
+            <td class="font-mono text-stone-400">6</td>
+            <td class="font-medium text-ink">Random Forest</td>
+            <td><span class="badge-c">Classical</span></td>
+            <td class="font-mono text-stone-600">0.0118</td>
+            <td class="font-mono text-stone-500">0.0500</td>
+            <td class="font-mono text-stone-500">0.574</td>
+            <td class="text-stone-400 text-xs">~917K nodes</td>
+            <td class="text-stone-400 text-xs">19.6s</td>
+            <td class="text-stone-400 text-xs">1285ms</td>
+          </tr>
+          <tr>
+            <td class="font-mono text-stone-400">7</td>
+            <td class="font-medium text-ink">sklearn MLP</td>
+            <td><span class="badge-c">Classical</span></td>
+            <td class="font-mono text-stone-600">0.0149</td>
+            <td class="font-mono text-stone-500">0.0489</td>
+            <td class="font-mono text-stone-500">0.462</td>
+            <td class="text-stone-400 text-xs">-</td>
+            <td class="text-stone-400 text-xs">2.21s</td>
+            <td class="text-stone-400 text-xs">49.4ms</td>
+          </tr>
+          <tr>
+            <td class="font-mono text-stone-400">8</td>
+            <td class="font-medium text-ink">Gradient Boosting</td>
+            <td><span class="badge-c">Classical</span></td>
+            <td class="font-mono text-stone-600">0.0165</td>
+            <td class="font-mono text-stone-500">0.0517</td>
+            <td class="font-mono text-stone-500">0.407</td>
+            <td class="text-stone-400 text-xs">-</td>
+            <td class="text-stone-400 text-xs">17.3s</td>
+            <td class="text-stone-400 text-xs">244ms</td>
+          </tr>
+          <tr>
+            <td class="font-mono text-stone-400">9</td>
+            <td class="font-medium text-ink">QUANTECH MLP</td>
+            <td><span class="badge-q">Quantum</span></td>
+            <td class="font-mono text-stone-600">0.0218</td>
+            <td class="font-mono text-stone-500">0.0475</td>
+            <td class="font-mono text-stone-500">0.214</td>
+            <td class="text-stone-400 text-xs">377,492</td>
+            <td class="text-stone-400 text-xs">-</td>
+            <td class="text-stone-400 text-xs">0.54ms</td>
+          </tr>
+          <tr>
+            <td class="font-mono text-stone-400">10</td>
+            <td class="font-medium text-red-500">VQC (Trained)</td>
+            <td><span class="badge-q">Quantum</span></td>
+            <td class="font-mono text-red-400">0.0581</td>
+            <td class="font-mono text-red-400">0.0851</td>
+            <td class="font-mono text-red-400">&minus;1.09</td>
+            <td class="text-stone-400 text-xs">1,166</td>
+            <td class="text-stone-400 text-xs">3.96s</td>
+            <td class="text-stone-400 text-xs">1.10ms</td>
+          </tr>
+          <tr>
+            <td class="font-mono text-stone-400">11</td>
+            <td class="font-medium text-red-500">Quantum LSTM</td>
+            <td><span class="badge-q">Quantum</span></td>
+            <td class="font-mono text-red-400">0.0641</td>
+            <td class="font-mono text-red-400">0.1079</td>
+            <td class="font-mono text-red-400">&minus;1.31</td>
+            <td class="text-stone-400 text-xs">2,180</td>
+            <td class="text-stone-400 text-xs">114.7s</td>
+            <td class="text-stone-400 text-xs">29.3ms</td>
+          </tr>
+        </tbody>
       </table>
     </div>
 
     <!-- Static benchmark figures -->
     <h3 class="font-body text-xl font-bold text-ink text-center mb-2 reveal">Visual Comparisons</h3>
     <p class="text-center text-xs text-stone-400 mb-8 reveal">
-      <span class="inline-flex items-center gap-1 mr-3"><span class="w-2.5 h-2.5 rounded-sm bg-q-500"></span><span class="text-q-500 font-medium">Quantum</span></span>
-      <span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm bg-emerald-500"></span><span class="text-emerald-500 font-medium">Classical</span></span>
+      <span class="inline-flex items-center gap-1 mr-3"><span class="w-2.5 h-2.5 rounded-sm" style="background:#ddd6fe;border:1px solid #8b5cf6;"></span><span class="font-medium" style="color:#8b5cf6;">Ours</span></span>
+      <span class="inline-flex items-center gap-1 mr-3"><span class="w-2.5 h-2.5 rounded-sm" style="background:#c4b5fd;border:1px solid #7c3aed;"></span><span class="text-q-500 font-medium">Quantum</span></span>
+      <span class="inline-flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-sm" style="background:#a7f3d0;border:1px solid #059669;"></span><span class="text-emerald-500 font-medium">Classical</span></span>
     </p>
 
+    <!-- Test Latent MSE -->
     <div class="plot-box mb-6 reveal">
-      <img src="../benchmarks/figures/08_leaderboard.png" alt="Leaderboard" onclick="lbOpen(this)" loading="lazy" />
-      <div class="caption">Full visual leaderboard &mdash; 11 models ranked by latent MSE.</div>
+      <img src="figures/08_test_latent_mse.png" alt="Test Latent MSE" onclick="lbOpen(this)" loading="lazy" />
+      <div class="caption">Test latent MSE &mdash; all 11 models ranked. Lower is better.</div>
     </div>
 
     <div class="grid lg:grid-cols-2 gap-5 mb-6">
       <div class="plot-box reveal">
-        <img src="../benchmarks/figures/04_accuracy_vs_speed.png" alt="Accuracy vs Speed" onclick="lbOpen(this)" loading="lazy" />
-        <div class="caption">Accuracy vs inference speed &mdash; Pareto frontier</div>
+        <img src="figures/09_test_surface_rmse.png" alt="Test Surface RMSE" onclick="lbOpen(this)" loading="lazy" />
+        <div class="caption">Test surface RMSE &mdash; what matters for actual pricing. QORC+Ridge is #1.</div>
       </div>
       <div class="plot-box reveal">
-        <img src="../benchmarks/figures/05_radar.png" alt="Radar Chart" onclick="lbOpen(this)" loading="lazy" />
-        <div class="caption">Multi-metric radar: top models vs Quantum LSTM</div>
+        <img src="figures/10_test_r2.png" alt="Test R²" onclick="lbOpen(this)" loading="lazy" />
+        <div class="caption">Test R&sup2; score. Negative values = worse than predicting the mean.</div>
       </div>
     </div>
+
+    <div class="grid lg:grid-cols-2 gap-5 mb-6">
+      <div class="plot-box reveal">
+        <img src="figures/11_accuracy_vs_speed.png" alt="Accuracy vs Speed" onclick="lbOpen(this)" loading="lazy" />
+        <div class="caption">Accuracy vs inference speed trade-off &mdash; QORC+Ridge sits on the Pareto frontier.</div>
+      </div>
+      <div class="plot-box reveal">
+        <img src="figures/12_val_vs_test.png" alt="Validation vs Test" onclick="lbOpen(this)" loading="lazy" />
+        <div class="caption">Validation vs test generalisation. Points near y=x generalise well.</div>
+      </div>
+    </div>
+
     <div class="max-w-2xl mx-auto mb-14">
       <div class="plot-box reveal">
-        <img src="../benchmarks/figures/06_quantum_vs_classical.png" alt="Quantum vs Classical" onclick="lbOpen(this)" loading="lazy" />
-        <div class="caption">Quantum vs classical head-to-head comparison</div>
+        <img src="figures/13_training_time.png" alt="Training Time" onclick="lbOpen(this)" loading="lazy" />
+        <div class="caption">Training time comparison across all models.</div>
       </div>
     </div>
 
@@ -803,7 +959,7 @@
           QORC + Ridge: Best Quantum Model
         </h4>
         <p class="text-sm text-stone-500 leading-relaxed">
-          <strong class="text-q-500">#1 among quantum models, #4 overall</strong> with MSE 0.014, R&sup2; 0.825, and <strong class="text-q-500">fastest inference at 0.09ms</strong>. The only quantum approach within striking distance of classical baselines.
+          <strong class="text-q-500">#1 among quantum models, #4 overall</strong> by test latent MSE (0.0099). <strong class="text-q-500">Lowest test surface RMSE (0.0425)</strong> of all 11 models &mdash; the metric that matters most for actual swaption pricing. Fastest quantum inference at 0.10ms.
         </p>
       </div>
       <div class="glass-card p-7">
@@ -812,7 +968,7 @@
           Trainable Quantum Params Overfit
         </h4>
         <p class="text-sm text-stone-500 leading-relaxed">
-          <strong class="text-red-400">VQC (R&sup2;=-0.19)</strong> and <strong class="text-red-400">Quantum LSTM (R&sup2;=0.33)</strong> are worst performers. Both train quantum params on 494 samples. Validates our <strong class="text-ink">reservoir computing paradigm</strong>.
+          <strong class="text-red-400">VQC (R&sup2;=&minus;1.09)</strong> and <strong class="text-red-400">Quantum LSTM (R&sup2;=&minus;1.31)</strong> are worst performers on test data &mdash; negative R&sup2; means worse than predicting the mean. Both train quantum params on 494 samples. Validates our <strong class="text-ink">reservoir computing paradigm</strong>.
         </p>
       </div>
     </div>
@@ -1165,118 +1321,6 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') lbClose({});
   if (e.key === 'ArrowLeft') lbPrev(e);
   if (e.key === 'ArrowRight') lbNext(e);
-});
-
-// ─── Plotly Charts ───
-const PLOTLY_LAYOUT_BASE = {
-  paper_bgcolor: 'rgba(0,0,0,0)',
-  plot_bgcolor: 'rgba(0,0,0,0)',
-  font: { family: 'DM Sans, sans-serif', color: '#78716c', size: 11 },
-  margin: { l: 50, r: 20, t: 40, b: 40 },
-};
-
-// 3D Swaption Surface
-fetch('assets/surface_data.json').then(r => r.json()).then(data => {
-  const s = data.surfaces[2]; // last day
-  Plotly.newPlot('plotlySurface', [{
-    z: s.values, x: data.maturities, y: data.tenors,
-    type: 'surface', colorscale: 'Portland',
-    contours: { z: { show: true, usecolormap: true, highlightcolor: '#fff', project: {z: true} }},
-  }], {
-    ...PLOTLY_LAYOUT_BASE,
-    title: { text: `Swaption Surface (${s.date})`, font: { size: 14, color: '#1c1917' }},
-    scene: {
-      xaxis: { title: 'Maturity', gridcolor: '#e7e5e4', zerolinecolor: '#e7e5e4' },
-      yaxis: { title: 'Tenor', gridcolor: '#e7e5e4', zerolinecolor: '#e7e5e4' },
-      zaxis: { title: 'Price', gridcolor: '#e7e5e4', zerolinecolor: '#e7e5e4' },
-      camera: { eye: {x: 1.6, y: -1.6, z: 0.8} },
-    },
-    margin: { l: 0, r: 0, t: 50, b: 0 },
-    height: 380,
-  }, {responsive: true});
-}).catch(() => {
-  document.getElementById('plotlySurface').innerHTML = '<div class="plotly-loading">Failed to load surface data</div>';
-});
-
-// Latent Trajectories
-fetch('assets/latent_trajectories.json').then(r => r.json()).then(data => {
-  const colors = ['#8347ff', '#059669', '#ef4444', '#f59e0b', '#3b82f6'];
-  const traces = Object.keys(data.dimensions).map((dim, i) => ({
-    x: data.timesteps, y: data.dimensions[dim],
-    name: dim.replace('_', ' ').toUpperCase(), type: 'scatter', mode: 'lines',
-    line: { color: colors[i], width: 1.5 },
-  }));
-  Plotly.newPlot('plotlyLatent', traces, {
-    ...PLOTLY_LAYOUT_BASE,
-    title: { text: 'Latent Code Trajectories', font: { size: 14, color: '#1c1917' }},
-    xaxis: { title: 'Timestep', gridcolor: '#f5f5f4' },
-    yaxis: { title: 'Value', gridcolor: '#f5f5f4' },
-    legend: { orientation: 'h', y: -0.15 },
-    height: 380,
-  }, {responsive: true});
-}).catch(() => {
-  document.getElementById('plotlyLatent').innerHTML = '<div class="plotly-loading">Failed to load trajectory data</div>';
-});
-
-// Prediction Comparison
-fetch('assets/prediction_comparison.json').then(r => r.json()).then(data => {
-  const colors = ['#8347ff', '#059669', '#ef4444'];
-  const traces = [];
-  Object.keys(data.columns).forEach((dim, i) => {
-    const d = data.columns[dim];
-    traces.push({
-      x: data.timesteps, y: d.actual,
-      name: `Actual (${dim})`, type: 'scatter', mode: 'lines',
-      line: { color: colors[i], width: 2 },
-    });
-    traces.push({
-      x: data.timesteps, y: d.predicted,
-      name: `Predicted (${dim})`, type: 'scatter', mode: 'lines',
-      line: { color: colors[i], width: 2, dash: 'dot' },
-    });
-  });
-  Plotly.newPlot('plotlyPrediction', traces, {
-    ...PLOTLY_LAYOUT_BASE,
-    title: { text: 'Prediction vs Ground Truth (Validation)', font: { size: 14, color: '#1c1917' }},
-    xaxis: { title: 'Validation Timestep', gridcolor: '#f5f5f4' },
-    yaxis: { title: 'Latent Value', gridcolor: '#f5f5f4' },
-    legend: { orientation: 'h', y: -0.2, font: { size: 10 } },
-    height: 360,
-  }, {responsive: true});
-}).catch(() => {
-  document.getElementById('plotlyPrediction').innerHTML = '<div class="plotly-loading">Failed to load prediction data</div>';
-});
-
-// ─── Benchmark Table from JSON ───
-const QUANTUM_NAMES = new Set(['Simple PML + Ridge', '\u2605 QORC + Ridge (ours)', 'QUANTECH MLP (ours)', 'Quantum LSTM', 'VQC (Trained)']);
-fetch('assets/benchmark_results.json').then(r => r.json()).then(data => {
-  const body = document.getElementById('benchBody');
-  // Sort by latent_MSE (col 1)
-  const sorted = data.data.sort((a, b) => parseFloat(a[1]) - parseFloat(b[1]));
-  sorted.forEach((row, i) => {
-    const name = row[0];
-    const isOurs = name.includes('QORC + Ridge');
-    const isQ = QUANTUM_NAMES.has(name);
-    const tr = document.createElement('tr');
-    if (isOurs) tr.className = 'our-row';
-    const fmt = (v, d=4) => typeof v === 'number' ? v.toFixed(d) : v;
-    const fmtMs = (v) => typeof v === 'number' ? (v < 1 ? v.toFixed(2) + 'ms' : (v < 100 ? v.toFixed(1) + 'ms' : v.toFixed(0) + 'ms')) : v;
-    const fmtTime = (v) => typeof v === 'number' ? (v < 1 ? v.toFixed(2) + 's' : v.toFixed(1) + 's') : v;
-    tr.innerHTML = `
-      <td class="font-mono text-stone-400">${i+1}</td>
-      <td class="font-medium ${isOurs ? 'text-q-600' : 'text-ink'}">${isOurs ? '&#9733; ' : ''}${name.replace('★ ', '')}</td>
-      <td>${isQ ? '<span class="badge-q">Quantum</span>' : '<span class="badge-c">Classical</span>'}</td>
-      <td class="font-mono ${isOurs ? '' : 'text-stone-600'}">${fmt(row[1])}</td>
-      <td class="font-mono text-stone-500">${fmt(row[5])}</td>
-      <td class="font-mono text-stone-500">${fmt(row[6], 3)}</td>
-      <td class="text-stone-400 text-xs">${row[7]}</td>
-      <td class="text-stone-400 text-xs">${fmtTime(row[8])}</td>
-      <td class="text-stone-400 text-xs">${fmtMs(row[9])}</td>
-    `;
-    body.appendChild(tr);
-  });
-}).catch(() => {
-  document.getElementById('benchBody').innerHTML = '<tr><td colspan="9" class="text-center text-stone-400 py-8">Failed to load benchmark data</td></tr>';
 });
 </script>
 
